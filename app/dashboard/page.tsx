@@ -193,7 +193,7 @@ export default function Dashboard() {
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }} className="grid">
-      <h1>RivalSense</h1>
+      <h1>RivalSense AI</h1>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <form onSubmit={addCompetitor} className="card grid">
