@@ -143,24 +143,16 @@ export async function GET(req: NextRequest) {
         const sourceType = source.type || 'source';
 
         await sendAlert(
-          email,
-          `RivalSense alert: ${competitorName} ${sourceType} changed`,
-          `
-            <h2>${escapeHtml(competitorName)} changed</h2>
-
-            <p><strong>Source:</strong> ${escapeHtml(sourceType)}</p>
-
-            <p><strong>Summary:</strong></p>
-            <p>${escapeHtml(ai.summary)}</p>
-
-            <p>
-              <a href="${escapeHtml(source.url)}">View source</a>
-            </p>
-
-            <h3>Diff excerpt</h3>
-            <pre>${escapeHtml(diff).slice(0, 3000)}</pre>
-          `
-        );
+  email,
+  `RivalSense alert: ${competitorName} ${sourceType} changed`,
+  buildChangeEmail({
+    competitor: competitorName,
+    sourceType,
+    sourceUrl: source.url,
+    summary: ai.summary,
+    diff,
+  })
+);
 
         if (change?.id) {
           await supabase
@@ -177,6 +169,7 @@ export async function GET(req: NextRequest) {
         status: 'changed',
         summary: ai.summary,
       });
+      
     } catch (e) {
       await updateSourceStatus(source.id, 'error');
 
