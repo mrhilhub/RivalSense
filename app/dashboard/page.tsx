@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supab aseAnon } from '@/lib/supabaseClient';
+import { supabaseAnon } from '@/lib/supabaseClient';
 
 type Competitor = {
   id: string;
@@ -42,11 +42,14 @@ export default function Dashboard() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<Change[]>([]);
+
   const [name, setName] = useState('');
   const [website, setWebsite] = useState('');
+
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceType, setSourceType] = useState('pricing');
   const [competitorId, setCompetitorId] = useState('');
+
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState('');
 
@@ -97,39 +100,39 @@ export default function Dashboard() {
   }, []);
 
   async function addCompetitor(e: React.FormEvent) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!name.trim()) return;
+    if (!name.trim()) return;
 
-  const res = await fetch('/api/competitors', {
-    method: 'POST',
-    body: JSON.stringify({
-      user_id: userId,
-      name: name.trim(),
-      website: website.trim() || null,
-    }),
-    headers: { 'content-type': 'application/json' },
-  });
-
-  const competitor = await res.json();
-
-  if (website.trim() && competitor?.id) {
-    await fetch('/api/sources', {
+    const res = await fetch('/api/competitors', {
       method: 'POST',
       body: JSON.stringify({
         user_id: userId,
-        competitor_id: competitor.id,
-        type: 'website',
-        url: website.trim(),
+        name: name.trim(),
+        website: website.trim() || null,
       }),
       headers: { 'content-type': 'application/json' },
     });
-  }
 
-  setName('');
-  setWebsite('');
-  load();
-}
+    const competitor = await res.json();
+
+    if (website.trim() && competitor?.id) {
+      await fetch('/api/sources', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: userId,
+          competitor_id: competitor.id,
+          type: 'website',
+          url: website.trim(),
+        }),
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    setName('');
+    setWebsite('');
+    load();
+  }
 
   async function addSource(e: React.FormEvent) {
     e.preventDefault();
@@ -171,7 +174,8 @@ export default function Dashboard() {
     setCheckResult('');
 
     try {
-      const res = await fetch('/api/check?secret=' + encodeURIComponent(process.env.NEXT_PUBLIC_CRON_SECRET || ''));
+      const secret = process.env.NEXT_PUBLIC_CRON_SECRET || '';
+      const res = await fetch('/api/check?secret=' + encodeURIComponent(secret));
       const json = await res.json();
       setCheckResult(JSON.stringify(json, null, 2));
       load();
@@ -182,6 +186,11 @@ export default function Dashboard() {
     setChecking(false);
   }
 
+  const sourcesByCompetitor = competitors.map((competitor) => ({
+    competitor,
+    sources: sources.filter((s) => s.competitor_id === competitor.id),
+  }));
+
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }} className="grid">
       <h1>RivalSense</h1>
@@ -189,23 +198,32 @@ export default function Dashboard() {
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <form onSubmit={addCompetitor} className="card grid">
           <h2>Add competitor</h2>
+          <p className="muted">
+            Add a competitor once. Their main website will be monitored automatically.
+          </p>
+
           <input
             className="input"
             placeholder="Anthropic"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+
           <input
             className="input"
             placeholder="https://anthropic.com"
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
           />
-          <button className="btn">Add</button>
+
+          <button className="btn">Add competitor</button>
         </form>
 
         <form onSubmit={addSource} className="card grid">
-          <h2>Add extra monitored URL</h2>
+          <h2>Add extra source</h2>
+          <p className="muted">
+            Add specific pages like pricing, docs, changelogs, or GitHub repos.
+          </p>
 
           <select
             className="input"
@@ -236,31 +254,46 @@ export default function Dashboard() {
             onChange={(e) => setSourceUrl(e.target.value)}
           />
 
-          <button className="btn">Monitor URL</button>
+          <button className="btn">Add source</button>
         </form>
       </section>
 
       <section className="card grid">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-          <h2>Monitored URLs</h2>
+          <h2>Competitors</h2>
           <button className="btn" onClick={runCheckNow} disabled={checking}>
             {checking ? 'Checking...' : 'Run check now'}
           </button>
         </div>
 
-        {sources.length === 0 && <p className="muted">No monitored URLs yet.</p>}
+        {competitors.length === 0 && <p className="muted">No competitors yet.</p>}
 
-        {sources.map((s) => (
-          <div key={s.id} className="card" style={{ display: 'grid', gap: 8 }}>
-            <strong>
-              {s.competitors?.name || 'Competitor'} · {s.type}
-            </strong>
-            <a className="muted" href={s.url} target="_blank">
-              {s.url}
-            </a>
-            <button className="btn" onClick={() => deleteSource(s.id)}>
-              Delete
-            </button>
+        {sourcesByCompetitor.map(({ competitor, sources }) => (
+          <div key={competitor.id} className="card grid">
+            <div>
+              <h3>{competitor.name}</h3>
+              {competitor.website && (
+                <a className="muted" href={competitor.website} target="_blank">
+                  {competitor.website}
+                </a>
+              )}
+            </div>
+
+            {sources.length === 0 && (
+              <p className="muted">No monitored sources yet.</p>
+            )}
+
+            {sources.map((s) => (
+              <div key={s.id} className="card" style={{ display: 'grid', gap: 8 }}>
+                <strong>{s.type}</strong>
+                <a className="muted" href={s.url} target="_blank">
+                  {s.url}
+                </a>
+                <button className="btn" onClick={() => deleteSource(s.id)}>
+                  Delete source
+                </button>
+              </div>
+            ))}
           </div>
         ))}
 
@@ -283,11 +316,14 @@ export default function Dashboard() {
             <p className="muted">
               Importance {c.importance_score}/5 · {new Date(c.created_at).toLocaleString()}
             </p>
+
             <h3>
               {c.monitored_sources?.competitors?.name || 'Competitor'} ·{' '}
               {c.monitored_sources?.type}
             </h3>
+
             <p>{c.summary}</p>
+
             <p>
               <a className="muted" href={c.monitored_sources?.url} target="_blank">
                 {c.monitored_sources?.url}
