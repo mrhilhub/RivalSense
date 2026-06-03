@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import { fetchCleanText, hashText } from '@/lib/crawler';
 import { makeDiffExcerpt } from '@/lib/diff';
 import { summarizeChange } from '@/lib/summarize';
-import { sendAlert } from '@/lib/email';
+import { sendAlert, buildChangeEmail } from '@/lib/email';
 
 export const maxDuration = 60;
 
