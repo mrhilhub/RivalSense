@@ -1,6 +1,3 @@
-Replace your entire `app/dashboard/page.tsx` with this. It keeps your current APIs/data model, removes the bad homepage-monitoring copy, improves cards, adds counts/badges, and makes check results cleaner. 
-
-```tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
