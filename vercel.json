@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/check?secret=change-this-secret",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}
