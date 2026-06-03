@@ -130,21 +130,6 @@ export default function Dashboard() {
       headers: { 'content-type': 'application/json' },
     });
 
-    const competitor = await res.json();
-
-    if (cleanWebsite && competitor?.id) {
-      await fetch('/api/sources', {
-        method: 'POST',
-        body: JSON.stringify({
-          user_id: userId,
-          competitor_id: competitor.id,
-          type: 'website',
-          url: cleanWebsite,
-        }),
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-
     setName('');
     setWebsite('');
     await load();
