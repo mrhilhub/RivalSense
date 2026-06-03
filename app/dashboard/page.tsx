@@ -1,6 +1,8 @@
 'use client';
 
+//test
 import { useEffect, useState } from 'react';
+
 import { supabaseAnon } from '@/lib/supabaseClient';
 
 type Competitor = {
