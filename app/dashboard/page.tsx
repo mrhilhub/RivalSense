@@ -205,7 +205,7 @@ export default function Dashboard() {
         </form>
 
         <form onSubmit={addSource} className="card grid">
-          <h2>Add monitored URL</h2>
+          <h2>Add extra monitored URL</h2>
 
           <select
             className="input"
