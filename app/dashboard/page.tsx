@@ -1,22 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { supabaseAnon } from '@/lib/supabaseClient';
-
-type Competitor = {
-  id: string;
-  name: string;
-  website: string | null;
-};
 
 type Source = {
   id: string;
-  competitor_id: string;
-  user_id: string;
   type: string;
   url: string;
   active: boolean;
-  created_at: string;
   last_checked_at?: string | null;
   last_status?: string | null;
   competitors?: {
@@ -42,6 +35,8 @@ type Change = {
 type CheckResultItem = {
   url: string;
   status: string;
+  error?: string;
+  summary?: string;
 };
 
 type CheckResult = {
@@ -50,7 +45,29 @@ type CheckResult = {
   error?: string;
 };
 
-const sourceTypes = ['pricing', 'docs', 'changelog', 'github', 'website'];
+const pageStyle: CSSProperties = {
+  minHeight: '100vh',
+  background:
+    'radial-gradient(circle at top left, rgba(99,102,241,0.20), transparent 32%), radial-gradient(circle at top right, rgba(14,165,233,0.14), transparent 30%), #070A12',
+  color: '#F8FAFC',
+};
+
+const shellStyle: CSSProperties = {
+  maxWidth: 1180,
+  margin: '0 auto',
+  padding: 28,
+};
+
+const cardStyle: CSSProperties = {
+  background: 'rgba(15,23,42,0.72)',
+  border: '1px solid rgba(148,163,184,0.16)',
+  borderRadius: 24,
+  boxShadow: '0 24px 80px rgba(0,0,0,0.34)',
+};
+
+const mutedStyle: CSSProperties = {
+  color: '#94A3B8',
+};
 
 function formatDate(value?: string | null) {
   if (!value) return 'Not checked yet';
@@ -59,80 +76,51 @@ function formatDate(value?: string | null) {
 
 function statusLabel(status?: string | null) {
   if (!status) return 'Not checked';
-
-  return status
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return status.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function importanceLabel(score: number) {
-  if (score >= 4) return 'High';
-  if (score >= 2) return 'Medium';
-  return 'Low';
-}
-
-function badgeStyle(type: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    borderRadius: 999,
-    padding: '4px 10px',
-    fontSize: 12,
-    fontWeight: 700,
-    textTransform: 'capitalize',
-    border: '1px solid rgba(255,255,255,0.12)',
-  };
-
-  const colors: Record<string, React.CSSProperties> = {
-    pricing: { background: 'rgba(124, 58, 237, 0.14)', color: '#c4b5fd' },
-    docs: { background: 'rgba(37, 99, 235, 0.14)', color: '#93c5fd' },
-    changelog: { background: 'rgba(22, 163, 74, 0.14)', color: '#86efac' },
-    github: { background: 'rgba(255,255,255,0.10)', color: '#e5e7eb' },
-    website: { background: 'rgba(107,114,128,0.14)', color: '#d1d5db' },
-  };
-
-  return { ...base, ...(colors[type] || colors.website) };
-}
-
-function statusBadgeStyle(status?: string | null): React.CSSProperties {
+function statusBadgeStyle(status?: string | null): CSSProperties {
   const normalized = status || 'not_checked';
 
-  const colors: Record<string, React.CSSProperties> = {
-    changed: { background: 'rgba(239,68,68,0.14)', color: '#fca5a5' },
-    unchanged: { background: 'rgba(34,197,94,0.14)', color: '#86efac' },
-    baseline_created: { background: 'rgba(59,130,246,0.14)', color: '#93c5fd' },
-    error: { background: 'rgba(239,68,68,0.14)', color: '#fca5a5' },
-    not_checked: { background: 'rgba(107,114,128,0.14)', color: '#d1d5db' },
+  const colors: Record<string, CSSProperties> = {
+    changed: { background: 'rgba(239,68,68,0.16)', color: '#FCA5A5' },
+    unchanged: { background: 'rgba(34,197,94,0.16)', color: '#86EFAC' },
+    baseline_created: { background: 'rgba(59,130,246,0.16)', color: '#93C5FD' },
+    error: { background: 'rgba(239,68,68,0.16)', color: '#FCA5A5' },
+    not_checked: { background: 'rgba(148,163,184,0.12)', color: '#CBD5E1' },
   };
 
   return {
     display: 'inline-flex',
     alignItems: 'center',
     borderRadius: 999,
-    padding: '4px 10px',
+    padding: '5px 10px',
     fontSize: 12,
-    fontWeight: 700,
-    border: '1px solid rgba(255,255,255,0.12)',
+    fontWeight: 800,
+    border: '1px solid rgba(255,255,255,0.10)',
     ...(colors[normalized] || colors.not_checked),
   };
 }
 
+function importanceBadge(score: number): CSSProperties {
+  if (score >= 4) return statusBadgeStyle('changed');
+  if (score >= 2) return statusBadgeStyle('baseline_created');
+  return statusBadgeStyle('unchanged');
+}
+
+function importanceLabel(score: number) {
+  if (score >= 4) return 'High priority';
+  if (score >= 2) return 'Medium priority';
+  return 'Low priority';
+}
+
 export default function Dashboard() {
-  const [userId, setUserId] = useState('');
-  const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<Change[]>([]);
-
-  const [name, setName] = useState('');
-  const [website, setWebsite] = useState('');
-
-  const [sourceUrl, setSourceUrl] = useState('');
-  const [sourceType, setSourceType] = useState('pricing');
-  const [competitorId, setCompetitorId] = useState('');
-
+  const [competitorCount, setCompetitorCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
-  const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
@@ -148,20 +136,12 @@ export default function Dashboard() {
       return;
     }
 
-    setUserId(user.id);
-
     const comps = await supabase
       .from('competitors')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .select('id')
+      .eq('user_id', user.id);
 
-    const compData = (comps.data || []) as Competitor[];
-    setCompetitors(compData);
-
-    if (compData[0] && !competitorId) {
-      setCompetitorId(compData[0].id);
-    }
+    setCompetitorCount(comps.data?.length || 0);
 
     const sourceRows = await supabase
       .from('monitored_sources')
@@ -176,139 +156,34 @@ export default function Dashboard() {
       .catch(() => []);
 
     setChanges(Array.isArray(digest) ? digest : []);
+
     setLoading(false);
   }
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sourcesByCompetitor = useMemo(() => {
-    return competitors.map((competitor) => {
-      const competitorSources = sources.filter(
-        (source) => source.competitor_id === competitor.id
-      );
+  const health = useMemo(() => {
+    const total = sources.length;
+    const errors = sources.filter((source) => source.last_status === 'error').length;
+    const healthy = total - errors;
 
-      const competitorChanges = changes.filter(
-        (change) =>
-          change.monitored_sources?.competitors?.name === competitor.name
-      );
+    const lastCheckedDates = sources
+      .map((source) => source.last_checked_at)
+      .filter(Boolean)
+      .map((value) => new Date(value as string).getTime());
 
-      const lastCheckedDates = competitorSources
-        .map((source) => source.last_checked_at)
-        .filter(Boolean)
-        .map((value) => new Date(value as string).getTime());
+    const lastCheckedAt =
+      lastCheckedDates.length > 0
+        ? new Date(Math.max(...lastCheckedDates)).toISOString()
+        : null;
 
-      const lastCheckedAt =
-        lastCheckedDates.length > 0
-          ? new Date(Math.max(...lastCheckedDates)).toISOString()
-          : null;
+    return { total, healthy, errors, lastCheckedAt };
+  }, [sources]);
 
-      return {
-        competitor,
-        sources: competitorSources,
-        changeCount: competitorChanges.length,
-        lastCheckedAt,
-      };
-    });
-  }, [competitors, sources, changes]);
-
-  async function addCompetitor(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!name.trim()) {
-      alert('Add a competitor name first.');
-      return;
-    }
-
-    const cleanWebsite = website.trim();
-
-    await fetch('/api/competitors', {
-      method: 'POST',
-      body: JSON.stringify({
-        user_id: userId,
-        name: name.trim(),
-        website: cleanWebsite || null,
-      }),
-      headers: { 'content-type': 'application/json' },
-    });
-
-    setName('');
-    setWebsite('');
-    await load();
-  }
-
-  async function addSource(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!competitorId) {
-      alert('Add or select a competitor first.');
-      return;
-    }
-
-    if (!sourceUrl.trim()) {
-      alert('Add a URL first.');
-      return;
-    }
-
-    await fetch('/api/sources', {
-      method: 'POST',
-      body: JSON.stringify({
-        user_id: userId,
-        competitor_id: competitorId,
-        type: sourceType,
-        url: sourceUrl.trim(),
-      }),
-      headers: { 'content-type': 'application/json' },
-    });
-
-    setSourceUrl('');
-    await load();
-  }
-
-  async function deleteSource(id: string) {
-    const confirmed = window.confirm('Delete this monitored source?');
-    if (!confirmed) return;
-
-    const supabase = supabaseAnon();
-
-    await supabase
-      .from('monitored_sources')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-
-    await load();
-  }
-
-  async function deleteCompetitor(id: string, competitorName: string) {
-    const confirmed = window.confirm(
-      `Delete ${competitorName} and all monitored sources attached to it?`
-    );
-
-    if (!confirmed) return;
-
-    const supabase = supabaseAnon();
-
-    await supabase
-      .from('monitored_sources')
-      .delete()
-      .eq('competitor_id', id)
-      .eq('user_id', userId);
-
-    await supabase
-      .from('competitors')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-
-    if (competitorId === id) {
-      setCompetitorId('');
-    }
-
-    await load();
-  }
+  const highPriorityChanges = changes.filter((change) => change.importance_score >= 4);
+  const recentChanges = changes.slice(0, 6);
 
   async function runCheckNow() {
     setChecking(true);
@@ -335,375 +210,299 @@ export default function Dashboard() {
   }
 
   return (
-    <main
-      style={{
-        maxWidth: 1180,
-        margin: '0 auto',
-        padding: 28,
-      }}
-      className="grid"
-    >
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 16,
-          alignItems: 'center',
-        }}
-      >
-        <div>
-          <h1 style={{ marginBottom: 6 }}>RivalSense</h1>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Track competitor pricing pages, docs, changelogs, GitHub repos, and
-            product updates.
-          </p>
-        </div>
-
-        <button className="btn" onClick={runCheckNow} disabled={checking}>
-          {checking ? 'Checking...' : 'Run check now'}
-        </button>
-      </header>
-
-      <section
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 16,
-        }}
-      >
-        <form onSubmit={addCompetitor} className="card grid">
-          <div>
-            <h2>Add competitor</h2>
-            <p className="muted">
-              Add a competitor company. Monitoring starts only when you add
-              specific sources.
-            </p>
-          </div>
-
-          <input
-            className="input"
-            placeholder="Company name, e.g. Anthropic"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Optional homepage, e.g. https://anthropic.com"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-          />
-
-          <button className="btn">Add competitor</button>
-        </form>
-
-        <form onSubmit={addSource} className="card grid">
-          <div>
-            <h2>Add monitored source</h2>
-            <p className="muted">
-              Add specific URLs like pricing pages, docs, changelogs, or GitHub
-              repos.
-            </p>
-          </div>
-
-          <select
-            className="input"
-            value={competitorId}
-            onChange={(e) => setCompetitorId(e.target.value)}
-          >
-            <option value="">Select competitor</option>
-            {competitors.map((competitor) => (
-              <option key={competitor.id} value={competitor.id}>
-                {competitor.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="input"
-            value={sourceType}
-            onChange={(e) => setSourceType(e.target.value)}
-          >
-            {sourceTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="input"
-            placeholder="https://example.com/pricing"
-            value={sourceUrl}
-            onChange={(e) => setSourceUrl(e.target.value)}
-          />
-
-          <button className="btn">Add source</button>
-        </form>
-      </section>
-
-      <section className="card grid">
-        <div
+    <main style={pageStyle}>
+      <div style={shellStyle}>
+        <nav
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            gap: 12,
             alignItems: 'center',
+            marginBottom: 28,
           }}
         >
-          <div>
-            <h2>Competitors</h2>
-            <p className="muted">
-              {competitors.length} competitors · {sources.length} monitored
-              sources · {changes.length} detected changes
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 999,
+                background: '#22C55E',
+                boxShadow: '0 0 24px rgba(34,197,94,0.9)',
+              }}
+            />
+            <strong>RivalSense</strong>
           </div>
-        </div>
 
-        {loading && <p className="muted">Loading...</p>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link className="btn" href="/dashboard/sources">
+              Manage sources
+            </Link>
+            <button className="btn" onClick={runCheckNow} disabled={checking}>
+              {checking ? 'Checking...' : 'Run check'}
+            </button>
+          </div>
+        </nav>
 
-        {!loading && competitors.length === 0 && (
-          <p className="muted">No competitors yet. Add your first one above.</p>
-        )}
+        <section
+          style={{
+            ...cardStyle,
+            padding: 34,
+            marginBottom: 18,
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(135deg, rgba(99,102,241,0.18), transparent 38%, rgba(14,165,233,0.12))',
+              pointerEvents: 'none',
+            }}
+          />
 
-        <div className="grid">
-          {sourcesByCompetitor.map(
-            ({ competitor, sources, changeCount, lastCheckedAt }) => (
-              <article key={competitor.id} className="card grid">
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 16,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <div>
-                    <h3 style={{ marginBottom: 6 }}>{competitor.name}</h3>
+          <div style={{ position: 'relative' }}>
+            <p
+              style={{
+                ...mutedStyle,
+                marginTop: 0,
+                textTransform: 'uppercase',
+                letterSpacing: 2,
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              Competitive intelligence brief
+            </p>
 
-                    <p className="muted" style={{ marginTop: 0 }}>
-                      {sources.length} monitored source
-                      {sources.length === 1 ? '' : 's'} · {changeCount} change
-                      {changeCount === 1 ? '' : 's'}
-                    </p>
+            <h1
+              style={{
+                fontSize: 52,
+                lineHeight: 1,
+                letterSpacing: -2,
+                maxWidth: 760,
+                margin: '0 0 16px',
+              }}
+            >
+              Know what your AI competitors changed before your customers do.
+            </h1>
 
-                    <p className="muted" style={{ marginTop: 0 }}>
-                      Last checked: {formatDate(lastCheckedAt)}
-                    </p>
+            <p style={{ ...mutedStyle, fontSize: 18, maxWidth: 720 }}>
+              RivalSense monitors competitor docs, pricing pages, changelogs, and
+              release notes — then turns changes into intelligence.
+            </p>
 
-                    {competitor.website ? (
-                      <a
-                        className="muted"
-                        href={competitor.website}
-                        target="_blank"
-                      >
-                        {competitor.website}
-                      </a>
-                    ) : (
-                      <p className="muted">No homepage saved.</p>
-                    )}
-                  </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                gap: 12,
+                marginTop: 28,
+              }}
+            >
+              <div style={{ ...cardStyle, padding: 18 }}>
+                <p style={{ ...mutedStyle, margin: 0 }}>Competitors</p>
+                <strong style={{ fontSize: 34 }}>{competitorCount}</strong>
+              </div>
 
-                  <button
-                    className="btn"
-                    onClick={() =>
-                      deleteCompetitor(competitor.id, competitor.name)
-                    }
-                    style={{ maxWidth: 180 }}
-                  >
-                    Delete competitor
-                  </button>
-                </div>
+              <div style={{ ...cardStyle, padding: 18 }}>
+                <p style={{ ...mutedStyle, margin: 0 }}>Sources</p>
+                <strong style={{ fontSize: 34 }}>{health.total}</strong>
+              </div>
 
-                {sources.length === 0 && (
-                  <div className="card">
-                    <p className="muted" style={{ margin: 0 }}>
-                      No monitored sources yet. Add a pricing page, docs page,
-                      changelog, or GitHub repo above.
-                    </p>
-                  </div>
-                )}
+              <div style={{ ...cardStyle, padding: 18 }}>
+                <p style={{ ...mutedStyle, margin: 0 }}>Healthy</p>
+                <strong style={{ fontSize: 34 }}>{health.healthy}</strong>
+              </div>
 
-                {sources.length > 0 && (
-                  <div className="grid">
-                    {sources.map((source) => (
-                      <div
-                        key={source.id}
-                        className="card"
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'auto 1fr auto',
-                          gap: 12,
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 8,
-                            alignItems: 'flex-start',
-                          }}
-                        >
-                          <span style={badgeStyle(source.type)}>
-                            {source.type}
-                          </span>
-
-                          <span style={statusBadgeStyle(source.last_status)}>
-                            {statusLabel(source.last_status)}
-                          </span>
-                        </div>
-
-                        <div style={{ minWidth: 0 }}>
-                          <a
-                            className="muted"
-                            href={source.url}
-                            target="_blank"
-                            style={{ overflowWrap: 'anywhere' }}
-                          >
-                            {source.url}
-                          </a>
-
-                          <p className="muted" style={{ marginBottom: 0 }}>
-                            Last checked: {formatDate(source.last_checked_at)}
-                          </p>
-                        </div>
-
-                        <button
-                          className="btn"
-                          onClick={() => deleteSource(source.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </article>
-            )
-          )}
-        </div>
+              <div style={{ ...cardStyle, padding: 18 }}>
+                <p style={{ ...mutedStyle, margin: 0 }}>Detected changes</p>
+                <strong style={{ fontSize: 34 }}>{changes.length}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {checkResult && (
-          <section className="card grid">
-            <div>
-              <h3 style={{ marginBottom: 6 }}>Latest check result</h3>
+          <section style={{ ...cardStyle, padding: 22, marginBottom: 18 }}>
+            <h2 style={{ marginTop: 0 }}>Latest check</h2>
 
-              {checkResult.error ? (
-                <p>{checkResult.error}</p>
-              ) : (
-                <p className="muted" style={{ marginTop: 0 }}>
-                  Checked {checkResult.checked ?? 0} source
-                  {checkResult.checked === 1 ? '' : 's'}.
-                </p>
-              )}
-            </div>
+            {checkResult.error ? (
+              <p>{checkResult.error}</p>
+            ) : (
+              <p style={mutedStyle}>
+                Checked {checkResult.checked ?? 0} sources.{' '}
+                {checkResult.results?.filter((r) => r.status === 'error').length || 0}{' '}
+                errors.
+              </p>
+            )}
 
-            {Array.isArray(checkResult.results) &&
-              checkResult.results.length > 0 && (
-                <div className="grid">
-                  {checkResult.results.map((item) => (
-                    <div
-                      key={item.url}
-                      className="card"
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'auto 1fr',
-                        gap: 12,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <span style={statusBadgeStyle(item.status)}>
-                        {statusLabel(item.status)}
-                      </span>
-
-                      <a
-                        className="muted"
-                        href={item.url}
-                        target="_blank"
-                        style={{ overflowWrap: 'anywhere' }}
-                      >
-                        {item.url}
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              )}
+            {checkResult.results && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {checkResult.results.map((result) => (
+                  <div
+                    key={result.url}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'auto 1fr',
+                      gap: 12,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={statusBadgeStyle(result.status)}>
+                      {statusLabel(result.status)}
+                    </span>
+                    <span style={{ ...mutedStyle, overflowWrap: 'anywhere' }}>
+                      {result.url}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
-      </section>
 
-      <section className="card grid">
-        <div>
-          <h2>Recent changes</h2>
-          <p className="muted">
-            New changes will appear here after a monitored page changes.
-          </p>
-        </div>
-
-        {changes.length === 0 && (
-          <p className="muted">No changes yet. First check creates baselines.</p>
-        )}
-
-        {changes.map((change) => (
-          <article key={change.id} className="card grid">
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 0.8fr)',
+            gap: 18,
+          }}
+        >
+          <div style={{ ...cardStyle, padding: 24 }}>
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 gap: 12,
-                alignItems: 'flex-start',
+                alignItems: 'center',
+                marginBottom: 18,
               }}
             >
               <div>
-                <span
-                  style={statusBadgeStyle(
-                    change.importance_score >= 4
-                      ? 'changed'
-                      : change.importance_score >= 2
-                        ? 'baseline_created'
-                        : 'unchanged'
-                  )}
-                >
-                  {importanceLabel(change.importance_score)} importance
-                </span>
-
-                <h3 style={{ marginBottom: 6 }}>
-                  {change.monitored_sources?.competitors?.name || 'Competitor'}{' '}
-                  · {change.monitored_sources?.type || 'source'}
-                </h3>
-
-                <p className="muted" style={{ marginTop: 0 }}>
-                  {new Date(change.created_at).toLocaleString()}
+                <h2 style={{ margin: 0 }}>Intelligence feed</h2>
+                <p style={{ ...mutedStyle, marginBottom: 0 }}>
+                  The latest competitor moves worth paying attention to.
                 </p>
               </div>
             </div>
 
-            <p>{change.summary}</p>
+            {loading && <p style={mutedStyle}>Loading intelligence...</p>}
 
-            {change.diff_excerpt && (
-              <pre
-                className="card"
-                style={{ overflowX: 'auto', whiteSpace: 'pre-wrap' }}
+            {!loading && recentChanges.length === 0 && (
+              <div
+                style={{
+                  border: '1px dashed rgba(148,163,184,0.28)',
+                  borderRadius: 20,
+                  padding: 26,
+                  background: 'rgba(15,23,42,0.42)',
+                }}
               >
-                {change.diff_excerpt}
-              </pre>
+                <h3 style={{ marginTop: 0 }}>No competitor changes detected yet.</h3>
+                <p style={mutedStyle}>
+                  Your baselines are created. When a monitored source changes,
+                  RivalSense will summarize it here and send an alert.
+                </p>
+              </div>
             )}
 
-            {change.monitored_sources?.url && (
-              <p>
-                <a
-                  className="muted"
-                  href={change.monitored_sources.url}
-                  target="_blank"
+            <div style={{ display: 'grid', gap: 14 }}>
+              {recentChanges.map((change) => (
+                <article
+                  key={change.id}
+                  style={{
+                    padding: 20,
+                    borderRadius: 20,
+                    border: '1px solid rgba(148,163,184,0.16)',
+                    background: 'rgba(2,6,23,0.38)',
+                  }}
                 >
-                  {change.monitored_sources.url}
-                </a>
-              </p>
-            )}
-          </article>
-        ))}
-      </section>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div>
+                      <span style={importanceBadge(change.importance_score)}>
+                        {importanceLabel(change.importance_score)}
+                      </span>
+
+                      <h3 style={{ marginBottom: 6 }}>
+                        {change.monitored_sources?.competitors?.name ||
+                          'Competitor'}{' '}
+                        · {change.monitored_sources?.type || 'source'}
+                      </h3>
+
+                      <p style={mutedStyle}>
+                        {new Date(change.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: 16 }}>{change.summary}</p>
+
+                  {change.monitored_sources?.url && (
+                    <a
+                      href={change.monitored_sources.url}
+                      target="_blank"
+                      style={{ color: '#93C5FD', overflowWrap: 'anywhere' }}
+                    >
+                      {change.monitored_sources.url}
+                    </a>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <aside style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
+            <section style={{ ...cardStyle, padding: 22 }}>
+              <h2 style={{ marginTop: 0 }}>Monitoring health</h2>
+
+              <div style={{ display: 'grid', gap: 12 }}>
+                <p style={mutedStyle}>
+                  Last checked: {formatDate(health.lastCheckedAt)}
+                </p>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={statusBadgeStyle('unchanged')}>
+                    {health.healthy} healthy
+                  </span>
+                  <span style={statusBadgeStyle(health.errors > 0 ? 'error' : 'not_checked')}>
+                    {health.errors} errors
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section style={{ ...cardStyle, padding: 22 }}>
+              <h2 style={{ marginTop: 0 }}>Priority alerts</h2>
+
+              {highPriorityChanges.length === 0 ? (
+                <p style={mutedStyle}>No high-priority alerts right now.</p>
+              ) : (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {highPriorityChanges.slice(0, 4).map((change) => (
+                    <div key={change.id}>
+                      <strong>
+                        {change.monitored_sources?.competitors?.name ||
+                          'Competitor'}
+                      </strong>
+                      <p style={{ ...mutedStyle, marginTop: 4 }}>
+                        {change.summary}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </aside>
+        </section>
+      </div>
     </main>
   );
 }
