@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabaseAnon } from '@/lib/supabaseClient';
+import { supab aseAnon } from '@/lib/supabaseClient';
 
 type Competitor = {
   id: string;
@@ -97,24 +97,39 @@ export default function Dashboard() {
   }, []);
 
   async function addCompetitor(e: React.FormEvent) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!name.trim()) return;
+  if (!name.trim()) return;
 
-    await fetch('/api/competitors', {
+  const res = await fetch('/api/competitors', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: userId,
+      name: name.trim(),
+      website: website.trim() || null,
+    }),
+    headers: { 'content-type': 'application/json' },
+  });
+
+  const competitor = await res.json();
+
+  if (website.trim() && competitor?.id) {
+    await fetch('/api/sources', {
       method: 'POST',
       body: JSON.stringify({
         user_id: userId,
-        name: name.trim(),
-        website: website.trim() || null,
+        competitor_id: competitor.id,
+        type: 'website',
+        url: website.trim(),
       }),
       headers: { 'content-type': 'application/json' },
     });
-
-    setName('');
-    setWebsite('');
-    load();
   }
+
+  setName('');
+  setWebsite('');
+  load();
+}
 
   async function addSource(e: React.FormEvent) {
     e.preventDefault();
