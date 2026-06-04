@@ -477,9 +477,41 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <p style={{ fontSize: 16, lineHeight: 1.65 }}>
-                      {item.current_preview}
-                    </p>
+                 <div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+    gap: 12,
+    marginTop: 16,
+    marginBottom: 16,
+  }}
+>
+  <div>
+    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Source type</p>
+    <strong style={{ textTransform: 'capitalize' }}>{item.type}</strong>
+  </div>
+
+  <div>
+    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Status</p>
+    <strong>{statusLabel(item.last_status)}</strong>
+  </div>
+
+  <div>
+    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Last checked</p>
+    <strong>{formatDate(item.last_checked_at)}</strong>
+  </div>
+</div>
+
+<p
+  style={{
+    ...mutedStyle,
+    fontSize: 15,
+    lineHeight: 1.6,
+    marginBottom: 0,
+  }}
+>
+  Current version captured and monitored. RivalSense will surface a summary when this source changes.
+</p>
 
                     <a
                       href={item.url}
