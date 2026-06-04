@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
+type SourceRow = {
+  id: string;
+  url: string;
+  type: string;
+  last_checked_at: string | null;
+  last_status: string | null;
+  competitors?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
 function previewText(text: string) {
-  return text
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 420);
+  return text.replace(/\s+/g, ' ').trim().slice(0, 420);
+}
+
+function competitorName(
+  competitors?: SourceRow['competitors']
+) {
+  if (Array.isArray(competitors)) {
+    return competitors[0]?.name || 'Competitor';
+  }
+
+  return competitors?.name || 'Competitor';
 }
 
 export async function GET(req: NextRequest) {
@@ -17,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = supabaseAdmin();
 
-  const { data: sources, error } = await supabase
+  const { data: sourceRows, error } = await supabase
     .from('monitored_sources')
     .select('id,url,type,last_checked_at,last_status,competitors(name)')
     .eq('user_id', userId)
@@ -28,9 +44,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const sources = (sourceRows || []) as SourceRow[];
+
   const intelligence = [];
 
-  for (const source of sources || []) {
+  for (const source of sources) {
     const { data: snapshot } = await supabase
       .from('snapshots')
       .select('id,raw_text,created_at')
@@ -41,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     intelligence.push({
       source_id: source.id,
-      competitor: source.competitors?.name || 'Competitor',
+      competitor: competitorName(source.competitors),
       type: source.type,
       url: source.url,
       last_checked_at: source.last_checked_at,
