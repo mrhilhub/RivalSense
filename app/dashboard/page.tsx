@@ -12,9 +12,6 @@ type Source = {
   active: boolean;
   last_checked_at?: string | null;
   last_status?: string | null;
-  competitors?: {
-    name: string;
-  };
 };
 
 type Change = {
@@ -30,6 +27,17 @@ type Change = {
       name: string;
     };
   };
+};
+
+type IntelligenceItem = {
+  source_id: string;
+  competitor: string;
+  type: string;
+  url: string;
+  last_checked_at?: string | null;
+  last_status?: string | null;
+  snapshot_created_at?: string | null;
+  current_preview: string;
 };
 
 type CheckResultItem = {
@@ -117,6 +125,7 @@ function importanceLabel(score: number) {
 export default function Dashboard() {
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<Change[]>([]);
+  const [intelligence, setIntelligence] = useState<IntelligenceItem[]>([]);
   const [competitorCount, setCompetitorCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -145,7 +154,7 @@ export default function Dashboard() {
 
     const sourceRows = await supabase
       .from('monitored_sources')
-      .select('*, competitors(name)')
+      .select('id,type,url,active,last_checked_at,last_status')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -156,6 +165,12 @@ export default function Dashboard() {
       .catch(() => []);
 
     setChanges(Array.isArray(digest) ? digest : []);
+
+    const intel = await fetch(`/api/intelligence?user_id=${user.id}`)
+      .then((r) => r.json())
+      .catch(() => []);
+
+    setIntelligence(Array.isArray(intel) ? intel : []);
 
     setLoading(false);
   }
@@ -285,12 +300,12 @@ export default function Dashboard() {
                 margin: '0 0 16px',
               }}
             >
-              Know what your AI competitors changed before your customers do.
+              Your live competitor intelligence database.
             </h1>
 
             <p style={{ ...mutedStyle, fontSize: 18, maxWidth: 720 }}>
               RivalSense monitors competitor docs, pricing pages, changelogs, and
-              release notes — then turns changes into intelligence.
+              release notes — then shows the current state and every meaningful change.
             </p>
 
             <div
@@ -371,26 +386,47 @@ export default function Dashboard() {
           }}
         >
           <div style={{ ...cardStyle, padding: 24 }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 12,
-                alignItems: 'center',
-                marginBottom: 18,
-              }}
-            >
-              <div>
-                <h2 style={{ margin: 0 }}>Intelligence feed</h2>
-                <p style={{ ...mutedStyle, marginBottom: 0 }}>
-                  The latest competitor moves worth paying attention to.
-                </p>
-              </div>
+            <div style={{ marginBottom: 18 }}>
+              <h2 style={{ margin: 0 }}>Current intelligence</h2>
+              <p style={{ ...mutedStyle, marginBottom: 0 }}>
+                The latest known state of every monitored competitor source.
+              </p>
             </div>
 
             {loading && <p style={mutedStyle}>Loading intelligence...</p>}
 
-            {!loading && recentChanges.length === 0 && (
+            {!loading && recentChanges.length > 0 && (
+              <div style={{ display: 'grid', gap: 14, marginBottom: 22 }}>
+                {recentChanges.map((change) => (
+                  <article
+                    key={change.id}
+                    style={{
+                      padding: 20,
+                      borderRadius: 20,
+                      border: '1px solid rgba(148,163,184,0.16)',
+                      background: 'rgba(2,6,23,0.38)',
+                    }}
+                  >
+                    <span style={importanceBadge(change.importance_score)}>
+                      {importanceLabel(change.importance_score)}
+                    </span>
+
+                    <h3 style={{ marginBottom: 6 }}>
+                      {change.monitored_sources?.competitors?.name || 'Competitor'} ·{' '}
+                      {change.monitored_sources?.type || 'source'}
+                    </h3>
+
+                    <p style={mutedStyle}>
+                      {new Date(change.created_at).toLocaleString()}
+                    </p>
+
+                    <p style={{ fontSize: 16 }}>{change.summary}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {!loading && intelligence.length === 0 && (
               <div
                 style={{
                   border: '1px dashed rgba(148,163,184,0.28)',
@@ -399,64 +435,63 @@ export default function Dashboard() {
                   background: 'rgba(15,23,42,0.42)',
                 }}
               >
-                <h3 style={{ marginTop: 0 }}>No competitor changes detected yet.</h3>
+                <h3 style={{ marginTop: 0 }}>No intelligence captured yet.</h3>
                 <p style={mutedStyle}>
-                  Your baselines are created. When a monitored source changes,
-                  RivalSense will summarize it here and send an alert.
+                  Add monitored sources, then run your first check to create baseline snapshots.
                 </p>
               </div>
             )}
 
-            <div style={{ display: 'grid', gap: 14 }}>
-              {recentChanges.map((change) => (
-                <article
-                  key={change.id}
-                  style={{
-                    padding: 20,
-                    borderRadius: 20,
-                    border: '1px solid rgba(148,163,184,0.16)',
-                    background: 'rgba(2,6,23,0.38)',
-                  }}
-                >
-                  <div
+            {!loading && intelligence.length > 0 && (
+              <div style={{ display: 'grid', gap: 14 }}>
+                {intelligence.map((item) => (
+                  <article
+                    key={item.source_id}
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      alignItems: 'flex-start',
+                      padding: 20,
+                      borderRadius: 20,
+                      border: '1px solid rgba(148,163,184,0.16)',
+                      background: 'rgba(2,6,23,0.38)',
                     }}
                   >
-                    <div>
-                      <span style={importanceBadge(change.importance_score)}>
-                        {importanceLabel(change.importance_score)}
-                      </span>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        alignItems: 'flex-start',
+                      }}
+                    >
+                      <div>
+                        <span style={statusBadgeStyle(item.last_status)}>
+                          {statusLabel(item.last_status)}
+                        </span>
 
-                      <h3 style={{ marginBottom: 6 }}>
-                        {change.monitored_sources?.competitors?.name ||
-                          'Competitor'}{' '}
-                        · {change.monitored_sources?.type || 'source'}
-                      </h3>
+                        <h3 style={{ marginBottom: 6 }}>
+                          {item.competitor} · {item.type}
+                        </h3>
 
-                      <p style={mutedStyle}>
-                        {new Date(change.created_at).toLocaleString()}
-                      </p>
+                        <p style={mutedStyle}>
+                          Snapshot captured: {formatDate(item.snapshot_created_at)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <p style={{ fontSize: 16 }}>{change.summary}</p>
+                    <p style={{ fontSize: 16, lineHeight: 1.65 }}>
+                      {item.current_preview}
+                    </p>
 
-                  {change.monitored_sources?.url && (
                     <a
-                      href={change.monitored_sources.url}
+                      href={item.url}
                       target="_blank"
                       style={{ color: '#93C5FD', overflowWrap: 'anywhere' }}
                     >
-                      {change.monitored_sources.url}
+                      {item.url}
                     </a>
-                  )}
-                </article>
-              ))}
-            </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
 
           <aside style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
@@ -489,8 +524,7 @@ export default function Dashboard() {
                   {highPriorityChanges.slice(0, 4).map((change) => (
                     <div key={change.id}>
                       <strong>
-                        {change.monitored_sources?.competitors?.name ||
-                          'Competitor'}
+                        {change.monitored_sources?.competitors?.name || 'Competitor'}
                       </strong>
                       <p style={{ ...mutedStyle, marginTop: 4 }}>
                         {change.summary}
