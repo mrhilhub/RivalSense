@@ -35,6 +35,14 @@ async function updateSourceStatus(
     .eq('id', sourceId);
 }
 
+function getCompanyName(source: { competitors?: { name?: string | null } | { name?: string | null }[] | null }) {
+  if (Array.isArray(source.competitors)) {
+    return source.competitors[0]?.name || 'AI company';
+  }
+
+  return source.competitors?.name || 'AI company';
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret');
 
@@ -129,6 +137,35 @@ export async function GET(req: NextRequest) {
         })
         .select()
         .single();
+
+      const companyName = getCompanyName(source);
+      const sourceType = source.type || 'company_update';
+
+      const { error: intelligenceError } = await supabase
+        .from('intelligence_items')
+        .insert({
+          user_id: source.user_id,
+          company_id: source.competitor_id,
+          source_id: source.id,
+          change_id: change?.id,
+          title: `${companyName} ${sourceType} changed`,
+          summary: ai.summary,
+          strategic_insight: ai.summary,
+          category: sourceType,
+          topics: [companyName, sourceType],
+          source_url: source.url,
+          observed_at: new Date().toISOString(),
+          confidence_score: 0.7,
+          metadata: {
+            importance_score: ai.importance_score || 3,
+            previous_snapshot_id: latest.id,
+            current_snapshot_id: snapshot?.id,
+          },
+        });
+
+      if (intelligenceError) {
+        console.error('Intelligence item insert failed:', intelligenceError.message);
+      }
 
       await updateSourceStatus(source.id, 'changed');
 
