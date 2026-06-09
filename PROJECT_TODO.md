@@ -1,69 +1,96 @@
-# RivalSense Product TODO
+# RivalSense Market TODO
 
-This file is the working source of truth for the pivot. Move slowly: one scoped step per commit, push to `main`, then verify the Vercel build/deploy before starting the next step.
+RivalSense should become a search-first AI market intelligence product: users ask questions about AI company changes and get sourced answers, not a manual website-monitoring setup tool.
 
-## User Direction Captured
+Work one item at a time. Each item gets its own small commit, push to `main`, and Vercel verification before the next item starts.
 
-1. Pivot RivalSense from competitor monitoring into an AI market intelligence database plus company graph.
-2. Start with the database foundation only:
-   - Add `intelligence_items`.
-   - Add `entities`.
-   - Add `entity_relationships`.
-   - Add `intelligence_item_entities`.
-   - Keep existing `profiles`, `competitors`, `monitored_sources`, `snapshots`, and `changes`.
-   - Add RLS, user scoping, useful indexes, vector search, and `search_intelligence_items`.
-3. Do not use or install a local database. This is cloud-first and changes should flow through GitHub.
-4. Add an easy way for users to query the intelligence database:
-   - Search-engine style input.
-   - Suggestions that help users ask good questions.
-   - Query `intelligence_items`, not raw snapshots.
-5. Correct product direction:
-   - Track AI companies, not database vendors.
-   - Keep tracking/snapshot infrastructure internal.
-   - Hide tracking complexity from customers.
-   - Add curated default AI companies and sources.
-   - Auto-run collection jobs in the background.
-   - Store findings as `intelligence_items`.
-   - Main UI should be a simple search page.
-   - Results should show answer, related intelligence items, company, observed date, source URL, and strategic insight.
-   - Product should feel like Perplexity/Bloomberg/Google for AI company changes, not source management software.
-6. Current correction:
-   - The previous changes were too much at once.
-   - First make this TODO list.
-   - Add all prior direction to it.
-   - Then tackle work one by one.
-   - Verify the Vercel app builds and deploys after each step.
+## Product Thesis
+
+RivalSense is "Perplexity for AI company changes": it tracks AI companies in the background, stores structured intelligence, and answers market questions with sources and strategic insight.
+
+## First Buyer
+
+Initial buyer: founders, product leaders, and strategy teams at AI startups who need to know what OpenAI, Anthropic, Google DeepMind, Perplexity, Mistral, Cohere, xAI, and adjacent competitors changed recently.
+
+Secondary buyer later: investors and analysts who want an always-current AI company intelligence database.
+
+## Paid Promise
+
+"Ask RivalSense what changed across AI companies this week and get a sourced strategic brief in seconds."
+
+## Marketable MVP
+
+The first sellable version must do five things well:
+
+1. Open to a simple search box.
+2. Answer questions about AI company changes.
+3. Show source-backed related intelligence items.
+4. Track default AI companies in the background.
+5. Let a user trust the answer because every claim has company, date, source URL, and strategic insight.
 
 ## Execution Rules
 
-- Do not install dependencies locally.
-- Do not set up a local database.
-- Prefer tiny commits.
-- Push each step to `main`.
-- After each push, verify the cloud build/deploy status before continuing.
-- If a build fails, stop product work and fix the build first.
+- No local database.
+- No local dependency installs.
+- Cloud-first through GitHub and Vercel.
+- One item per commit.
+- Push to `main`.
+- Verify Vercel build/deploy after every push.
+- If Vercel fails, stop feature work and fix the build first.
 
-## Step Plan
+## Work Plan
 
-- [x] Step 0: Commit this TODO file and verify Vercel deploys.
-- [ ] Step 1: Confirm current `main` build status and identify the exact failing build error if still broken.
-- [ ] Step 2: Fix only the build error, with the smallest possible change.
-- [ ] Step 3: Verify Vercel build/deploy succeeds.
-- [ ] Step 4: Audit existing migrations for cloud deploy safety.
-- [ ] Step 5: Audit current UI copy and remove misleading database-vendor framing.
-- [ ] Step 6: Audit automatic AI-company seeding for safety and idempotency.
-- [ ] Step 7: Audit collection flow so source changes create `intelligence_items` reliably.
-- [ ] Step 8: Audit search/answer flow so it queries `intelligence_items` and returns grounded answers.
-- [ ] Step 9: Only after the above are green, consider incremental product/UI refinements.
+### Track 0: Build And Release Discipline
 
-## Vercel Verification Log
+- [x] 0.1 Restore a deployable checkpoint.
+  - Commit: `ac6a438`
+  - Vercel: success
+  - Deployment: `https://vercel.com/mrhilhubs-projects/rivalsense/CYvduBHzMH1Qye6JF2BUT4WLNnPd`
+- [ ] 0.2 Keep this TODO current after every step.
+- [ ] 0.3 Add each future feature in one small commit and verify Vercel before continuing.
 
-- Step 0: Failed on Vercel for commit `a90b582`.
-  - GitHub status context: `Vercel`.
-  - Vercel deployment id: `dpl_BT3SV8tYsi4SvAgnC9Sqd8keCFv3`.
-  - Vercel message: `Deployment has failed — run this Vercel CLI command: npx vercel inspect dpl_BT3SV8tYsi4SvAgnC9Sqd8keCFv3 --logs`.
-  - `gh run list --branch main --limit 5` returned no GitHub Actions runs.
-  - `gh api .../check-runs` returned no check-run logs.
-  - Vercel events API requires an authentication token.
-  - Local `node` and `npm` are not installed, and project rules say not to install dependencies locally.
-  - Next action: get the Vercel log from the Vercel dashboard or provide a Vercel token/approved non-install method for reading logs.
+### Track 1: Product Positioning
+
+- [ ] 1.1 Remove remaining "database intelligence" and "database vendor" framing from user-facing copy.
+- [ ] 1.2 Make the homepage promise search-first AI market intelligence.
+- [ ] 1.3 Make dashboard/source language internal-facing or hide it from primary customer flows.
+
+### Track 2: Intelligence Database Foundation
+
+- [ ] 2.1 Confirm existing migration `202606090001_market_intelligence_graph.sql` is safe for Supabase cloud.
+- [ ] 2.2 Add only missing cloud-safe indexes/RPCs needed for LLM retrieval.
+- [ ] 2.3 Keep existing tracking tables intact: `profiles`, `competitors`, `monitored_sources`, `snapshots`, `changes`.
+
+### Track 3: Background AI Company Coverage
+
+- [ ] 3.1 Add a curated default AI company list in a small, typed config.
+- [ ] 3.2 Add idempotent seeding for default companies and sources.
+- [ ] 3.3 Verify Vercel deploys before connecting seeding to the UI.
+- [ ] 3.4 Connect seeding quietly after login only after 3.1-3.3 are green.
+
+### Track 4: Intelligence Item Creation
+
+- [ ] 4.1 Update the change summarizer to return structured market intelligence fields.
+- [ ] 4.2 Store each detected source change as an `intelligence_items` row.
+- [ ] 4.3 Add defensive error handling so failed intelligence creation does not break the crawler job.
+- [ ] 4.4 Verify Vercel deploys.
+
+### Track 5: Search And Answer Experience
+
+- [ ] 5.1 Add a search-first dashboard surface with suggested AI-market questions.
+- [ ] 5.2 Add a query API that searches `intelligence_items`.
+- [ ] 5.3 Return answer plus related intelligence items.
+- [ ] 5.4 Show company, observed date, source URL, and strategic insight.
+- [ ] 5.5 Verify Vercel deploys.
+
+### Track 6: Trust And Monetization
+
+- [ ] 6.1 Add "sources used" to every answer.
+- [ ] 6.2 Add saved/shared brief flow.
+- [ ] 6.3 Add a simple pricing hypothesis page or paywall experiment.
+- [ ] 6.4 Define launch outreach list of 20 AI founders/product leads.
+
+## Verification Log
+
+- `ac6a438`: Vercel deployment completed successfully.
+- Next step: commit this updated market TODO, push it, and verify Vercel again before touching product code.
