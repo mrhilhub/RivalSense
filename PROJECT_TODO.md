@@ -1,104 +1,379 @@
 # RivalSense Market TODO
 
-RivalSense should become a search-first AI market intelligence product: users ask questions about AI company changes and get sourced answers, not a manual website-monitoring setup tool.
+## Current Priorities
+- Finish minimal `intelligence_items` ingestion from detected changes
+- Verify `npm run build` and Vercel deploy on the next push
+- Keep messaging search-first and intelligence-first
 
-Work one item at a time. Each item gets its own small commit, push to `main`, and Vercel verification before the next item starts.
+## Vision
+RivalSense is building the historical intelligence layer for the AI industry.
 
-Status labels:
+The long-term asset is not monitoring infrastructure.
 
-- `[DONE]` finished and pushed
-- `[DOING]` active item
-- `[TODO]` not started
-- `[BLOCKED]` cannot continue without external input
+The long-term asset is a proprietary intelligence database containing:
 
-## Product Thesis
+- AI company changes
+- Product launches
+- Pricing changes
+- Documentation evolution
+- Strategic shifts
+- Technology adoption
+- Market trends
 
-RivalSense is "Perplexity for AI company changes": it tracks AI companies in the background, stores structured intelligence, and answers market questions with sources and strategic insight.
+Users should be able to ask:
 
-## First Buyer
+- What changed at Anthropic this week?
+- Which AI companies are investing in agents?
+- What pricing changes happened this month?
+- Which companies are increasing enterprise focus?
 
-Initial buyer: founders, product leaders, and strategy teams at AI startups who need to know what OpenAI, Anthropic, Google DeepMind, Perplexity, Mistral, Cohere, xAI, and adjacent competitors changed recently.
+And receive sourced answers instantly.
 
-Secondary buyer later: investors and analysts who want an always-current AI company intelligence database.
+---
 
-## Paid Promise
+# Product Thesis
+RivalSense automatically collects public intelligence from AI companies, structures it into a searchable database, and generates strategic insights.
 
-"Ask RivalSense what changed across AI companies this week and get a sourced strategic brief in seconds."
+The product should feel like:
 
-## Marketable MVP
+- AI Market Intelligence
+- Bloomberg for AI
+- Search for AI company intelligence
 
-The first sellable version must do five things well:
+The product should NOT feel like:
 
-1. Open to a simple search box.
-2. Answer questions about AI company changes.
-3. Show source-backed related intelligence items.
-4. Track default AI companies in the background.
-5. Let a user trust the answer because every claim has company, date, source URL, and strategic insight.
+- Website monitoring
+- Change tracking software
+- Source management software
 
-## Execution Rules
+---
 
-- No local database.
-- No local dependency installs.
-- Cloud-first through GitHub and Vercel.
-- One item per commit.
-- Push to `main`.
-- Verify Vercel build/deploy after every push.
-- If Vercel fails, stop feature work and fix the build first.
+# First Customer
+Primary:
 
-## Work Plan
+- AI startup founders
+- Product leaders
+- Competitive intelligence teams
+- Product marketers
 
-### Track 0: Build And Release Discipline
+Secondary:
 
-- [DONE] 0.1 Restore a deployable checkpoint.
-  - Commit: `ac6a438`
-  - Vercel: success
-  - Deployment: `https://vercel.com/mrhilhubs-projects/rivalsense/CYvduBHzMH1Qye6JF2BUT4WLNnPd`
-- [DONE] 0.2 Keep this TODO current after every step.
-- [TODO] 0.3 Add each future feature in one small commit and verify Vercel before continuing.
+- Investors
+- Analysts
+- Consultants
+- Agencies
 
-### Track 1: Product Positioning
+---
 
-- [TODO] 1.1 Remove remaining "database intelligence" and "database vendor" framing from user-facing copy.
-- [TODO] 1.2 Make the homepage promise search-first AI market intelligence.
-- [TODO] 1.3 Make dashboard/source language internal-facing or hide it from primary customer flows.
+# Core Promise
+"Ask RivalSense what changed across AI companies and receive a sourced strategic brief in seconds."
 
-### Track 2: Intelligence Database Foundation
+---
 
-- [TODO] 2.1 Confirm existing migration `202606090001_market_intelligence_graph.sql` is safe for Supabase cloud.
-- [TODO] 2.2 Add only missing cloud-safe indexes/RPCs needed for LLM retrieval.
-- [TODO] 2.3 Keep existing tracking tables intact: `profiles`, `competitors`, `monitored_sources`, `snapshots`, `changes`.
+# MVP Success Criteria
+A user should be able to:
 
-### Track 3: Background AI Company Coverage
+1. Open RivalSense
+2. Ask a question
+3. Receive a useful answer
+4. See supporting evidence
+5. Trust the answer
 
-- [TODO] 3.1 Add a curated default AI company list in a small, typed config.
-- [TODO] 3.2 Add idempotent seeding for default companies and sources.
-- [TODO] 3.3 Verify Vercel deploys before connecting seeding to the UI.
-- [TODO] 3.4 Connect seeding quietly after login only after 3.1-3.3 are green.
+Every answer should include:
 
-### Track 4: Intelligence Item Creation
+- Company
+- Date observed
+- Source URL
+- Summary
+- Strategic insight
 
-- [TODO] 4.1 Update the change summarizer to return structured market intelligence fields.
-- [DONE] 4.2 Store each detected source change as an `intelligence_items` row.
-- [DONE] 4.3 Add defensive error handling so failed intelligence creation does not break the crawler job.
-- [DOING] 4.4 Verify Vercel deploys.
+---
 
-### Track 5: Search And Answer Experience
+# Engineering Rules
 
-- [TODO] 5.1 Add a search-first dashboard surface with suggested AI-market questions.
-- [TODO] 5.2 Add a query API that searches `intelligence_items`.
-- [TODO] 5.3 Return answer plus related intelligence items.
-- [TODO] 5.4 Show company, observed date, source URL, and strategic insight.
-- [TODO] 5.5 Verify Vercel deploys.
+- GitHub is source of truth
+- main branch must remain deployable
+- Feature branches for development
+- One feature per PR
+- Verify Vercel deployment before merge
+- Fix build failures immediately
+- Run local build before pushing
 
-### Track 6: Trust And Monetization
+Required before every push:
 
-- [TODO] 6.1 Add "sources used" to every answer.
-- [TODO] 6.2 Add saved/shared brief flow.
-- [TODO] 6.3 Add a simple pricing hypothesis page or paywall experiment.
-- [TODO] 6.4 Define launch outreach list of 20 AI founders/product leads.
+```
+npm run build
+```
 
-## Verification Log
+---
 
-- `ac6a438`: Vercel deployment completed successfully.
-- `3094a22`: market TODO update pushed; Vercel verification was pending when interrupted.
-- Current step: add minimal `intelligence_items` writes from detected changes, push, and verify Vercel.
+# Track 0: Build Discipline
+
+- Restore deployable checkpoint
+- Keep roadmap current
+- Verify build before every push
+- Verify Vercel deployment after every merge
+- Maintain stable production deployment
+
+---
+
+# Track 1: Product Positioning
+
+- Update homepage messaging
+- Remove monitoring-first language
+- Remove tracking-first language
+- Replace source-management focus with intelligence focus
+- Add search-first product narrative
+
+Homepage should communicate:
+
+"Search AI company intelligence."
+
+Not:
+
+"Monitor competitor websites."
+
+---
+
+# Track 2: Intelligence Database Foundation
+
+- Verify intelligence database migration
+- Verify Supabase compatibility
+- Create intelligence_items table
+- Create entity extraction pipeline
+- Add embeddings support
+- Add semantic search support
+- Add retrieval RPCs
+
+Keep existing tables:
+
+- profiles
+- competitors
+- monitored_sources
+- snapshots
+- changes
+
+Do not remove working infrastructure.
+
+---
+
+# Track 3: AI Company Coverage
+Create a default intelligence universe.
+
+Initial companies:
+
+- OpenAI
+- Anthropic
+- Google DeepMind
+- Mistral
+- Cohere
+- xAI
+- Perplexity
+- Create typed company configuration
+- Create default source configuration
+- Build idempotent seeding
+- Auto-seed after onboarding
+- Verify deployments
+
+Users should not manually configure dozens of sources.
+
+---
+
+# Track 4: Intelligence Item Creation
+Every meaningful change should become an intelligence item.
+
+- Convert source changes into intelligence_items
+- Generate AI summaries
+- Generate strategic insights
+- Add topic extraction
+- Add category classification
+- Add confidence scoring
+- Add defensive error handling
+
+Outputs:
+
+- title
+- summary
+- strategic_insight
+- category
+- topics
+- source
+- observed_at
+
+---
+
+# Track 5: Search Experience
+Search becomes the primary product experience.
+
+- Create Ask RivalSense page
+- Add suggested questions
+- Add intelligence search API
+- Add semantic retrieval
+- Generate AI answers
+- Show supporting intelligence items
+- Show sources used
+- Show company references
+- Show strategic insights
+
+Success metric:
+
+Users arrive and search immediately.
+
+---
+
+# Track 6: Customer Discovery
+Before building advanced features:
+
+- Interview 10 AI founders
+- Interview 5 product marketers
+- Interview 5 consultants
+- Collect top 50 intelligence questions
+- Rank most valuable questions
+- Prioritize roadmap around customer demand
+
+Goal:
+
+Learn what people actually pay to know.
+
+---
+
+# Track 7: Trust & Monetization
+
+- Add source citations
+- Add answer confidence indicators
+- Add saved searches
+- Add saved briefs
+- Add shareable intelligence reports
+- Create pricing page
+- Test subscription plans
+- Build launch list of 20 prospects
+
+Initial pricing hypothesis:
+
+- Starter: $49/month
+- Growth: $149/month
+- Pro: $299/month
+
+---
+
+# Track 8: Company Intelligence Profiles
+Create dedicated intelligence pages.
+
+Examples:
+
+- OpenAI
+- Anthropic
+- Google DeepMind
+- Mistral
+- Cohere
+- xAI
+
+Each profile should show:
+
+- Current strategic focus
+- Recent changes
+- Product launches
+- Pricing history
+- Timeline
+- Technologies
+- Sources
+
+Goal:
+
+A user can understand a company in under 60 seconds.
+
+---
+
+# Track 9: Proprietary Data Asset
+This is the moat.
+
+- Preserve historical intelligence
+- Store all intelligence indefinitely
+- Build company timelines
+- Build topic timelines
+- Build pricing history
+- Build launch history
+- Build trend detection
+- Build strategic shift detection
+- Build market reports
+
+Question:
+
+"What data becomes more valuable every day?"
+
+Answer:
+
+The intelligence database.
+
+---
+
+# Track 10: AI Company Graph
+Build after search and customer validation.
+
+Entities:
+
+- Companies
+- Products
+- Technologies
+- People
+- Investors
+- Events
+
+Relationships:
+
+- launched
+- acquired
+- partnered_with
+- invests_in
+- competes_with
+- supports
+- Build entities table
+- Build relationship extraction
+- Build graph search
+- Build trend relationships
+- Build graph visualization
+
+Graph is not the product.
+
+Graph supports better intelligence answers.
+
+---
+
+# Success Milestones
+
+## Phase 1
+
+- First paying customer
+
+## Phase 2
+
+- $1,000 MRR
+
+## Phase 3
+
+- $10,000 MRR
+
+## Phase 4
+
+- 100+ active intelligence users
+
+## Phase 5
+
+- Recognized source of AI market intelligence
+
+## Phase 6
+
+- Valuable proprietary intelligence asset
+
+## Phase 7
+
+- Strategic acquisition conversations
+
+Focus on:
+
+1. Customer value
+2. Retention
+3. Proprietary data
+4. Revenue
+
+Not engineering perfection.
