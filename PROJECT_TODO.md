@@ -45,7 +45,7 @@ This file is the working source of truth for the pivot. Move slowly: one scoped 
 
 ## Step Plan
 
-- [ ] Step 0: Commit this TODO file and verify Vercel deploys.
+- [x] Step 0: Commit this TODO file and verify Vercel deploys.
 - [ ] Step 1: Confirm current `main` build status and identify the exact failing build error if still broken.
 - [ ] Step 2: Fix only the build error, with the smallest possible change.
 - [ ] Step 3: Verify Vercel build/deploy succeeds.
@@ -58,4 +58,12 @@ This file is the working source of truth for the pivot. Move slowly: one scoped 
 
 ## Vercel Verification Log
 
-- Step 0: Pending.
+- Step 0: Failed on Vercel for commit `a90b582`.
+  - GitHub status context: `Vercel`.
+  - Vercel deployment id: `dpl_BT3SV8tYsi4SvAgnC9Sqd8keCFv3`.
+  - Vercel message: `Deployment has failed — run this Vercel CLI command: npx vercel inspect dpl_BT3SV8tYsi4SvAgnC9Sqd8keCFv3 --logs`.
+  - `gh run list --branch main --limit 5` returned no GitHub Actions runs.
+  - `gh api .../check-runs` returned no check-run logs.
+  - Vercel events API requires an authentication token.
+  - Local `node` and `npm` are not installed, and project rules say not to install dependencies locally.
+  - Next action: get the Vercel log from the Vercel dashboard or provide a Vercel token/approved non-install method for reading logs.
