@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { isSourceType } from '@/lib/sourceTypes';
 
 type SourceInput = {
   type: string;
   url: string;
 };
-
-const allowedTypes = new Set([
-  'pricing',
-  'docs',
-  'changelog',
-  'github',
-  'website',
-]);
 
 function normalizeUrl(url: string) {
   let value = url.trim();
@@ -75,7 +68,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const invalidType = sources.find((source) => !allowedTypes.has(source.type));
+    const invalidType = sources.find((source) => !isSourceType(source.type));
 
     if (invalidType) {
       return NextResponse.json(

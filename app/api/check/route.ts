@@ -139,14 +139,14 @@ export async function GET(req: NextRequest) {
       const email = user.user?.email;
 
       if (email) {
-        const competitorName = source.competitors?.name || 'Competitor';
+        const systemName = source.competitors?.name || 'System';
         const sourceType = source.type || 'source';
 
         await sendAlert(
   email,
-  `RivalSense alert: ${competitorName} ${sourceType} changed`,
+  `RivalSense database alert: ${systemName} ${sourceType} changed`,
   buildChangeEmail({
-    competitor: competitorName,
+    system: systemName,
     sourceType,
     sourceUrl: source.url,
     summary: ai.summary,

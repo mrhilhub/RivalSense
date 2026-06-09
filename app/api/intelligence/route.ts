@@ -18,10 +18,10 @@ function competitorName(
   competitors?: SourceRow['competitors']
 ) {
   if (Array.isArray(competitors)) {
-    return competitors[0]?.name || 'Competitor';
+    return competitors[0]?.name || 'System';
   }
 
-  return competitors?.name || 'Competitor';
+  return competitors?.name || 'System';
 }
 
 export async function GET(req: NextRequest) {

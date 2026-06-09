@@ -8,10 +8,10 @@ export async function summarizeChange(input: { url: string; oldText: string; new
   const completion = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     temperature: 0.2,
-    messages: [{ role: 'system', content: 'You summarize competitor intelligence changes for AI product teams. Be concise and practical. Return JSON only.' }, { role: 'user', content: JSON.stringify({
+    messages: [{ role: 'system', content: 'You summarize database intelligence changes for engineering, data, and platform teams. Focus on schema, migration, reliability, performance, release, pricing, and operational impact. Be concise and practical. Return JSON only.' }, { role: 'user', content: JSON.stringify({
       url: input.url,
       diff: input.diff.slice(0, 12000),
-      instruction: 'Summarize what changed, why it matters, and assign importance_score 1-5.'
+      instruction: 'Summarize what changed, why it matters for database/platform decisions, and assign importance_score 1-5.'
     }) }],
     response_format: { type: 'json_object' }
   });

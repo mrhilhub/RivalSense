@@ -1,17 +1,21 @@
-# Competitor Monitor for AI Companies
+# RivalSense Database Intelligence Platform
 
-A Vercel-ready MVP for monitoring competitor pricing pages, docs, changelogs, websites, and GitHub release pages. It stores snapshots, detects meaningful changes, summarizes them with OpenAI, and can send email alerts via Resend.
+A Vercel-ready MVP for monitoring database systems, vendors, internal platforms, and project sources. It stores snapshots, detects meaningful changes, summarizes database-relevant impact with OpenAI, and can send email alerts via Resend.
 
 ## What it does
 
 - Supabase auth
-- Competitor/source dashboard
+- Database system/source dashboard
 - URL crawler and boilerplate cleaner
 - Snapshot hashing
 - Text diffing
-- OpenAI summaries
+- OpenAI summaries focused on schema, migration, reliability, performance, release, pricing, and operational impact
 - Optional Resend email alerts
 - Vercel cron-compatible check endpoint
+
+## Database intelligence sources
+
+RivalSense can now classify monitored sources as schema, migration, incident, performance, benchmark, release, pricing, docs, changelog, GitHub, or website signals. The current implementation monitors public URLs and creates a baseline/current-state intelligence layer; database connectors can be added behind the same source/snapshot/change model.
 
 ## Quick local run
 
@@ -32,4 +36,4 @@ npm run dev
 
 ## MVP limitation
 
-This version monitors normal public web pages. Some sites block crawlers or require JS rendering. Add Browserless/Playwright later for those.
+This version monitors normal public web pages. Some sites block crawlers or require JS rendering. Add Browserless/Playwright later for those, and add native database connectors by writing extracted metadata into `snapshots`.

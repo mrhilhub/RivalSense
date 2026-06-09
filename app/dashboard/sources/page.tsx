@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { supabaseAnon } from '@/lib/supabaseClient';
+import { sourceTypeLabels, sourceTypes } from '@/lib/sourceTypes';
 
 type Competitor = {
   id: string;
@@ -25,8 +26,6 @@ type Source = {
     name: string;
   };
 };
-
-const sourceTypes = ['pricing', 'docs', 'changelog', 'github', 'website'];
 
 const pageStyle: CSSProperties = {
   minHeight: '100vh',
@@ -64,6 +63,12 @@ function statusLabel(status?: string | null) {
 
 function badgeStyle(type: string): CSSProperties {
   const colors: Record<string, CSSProperties> = {
+    schema: { background: 'rgba(20,184,166,0.16)', color: '#5EEAD4' },
+    migration: { background: 'rgba(245,158,11,0.16)', color: '#FCD34D' },
+    incident: { background: 'rgba(239,68,68,0.16)', color: '#FCA5A5' },
+    performance: { background: 'rgba(14,165,233,0.16)', color: '#7DD3FC' },
+    benchmark: { background: 'rgba(168,85,247,0.16)', color: '#D8B4FE' },
+    release: { background: 'rgba(34,197,94,0.16)', color: '#86EFAC' },
     pricing: { background: 'rgba(124,58,237,0.16)', color: '#C4B5FD' },
     docs: { background: 'rgba(37,99,235,0.16)', color: '#93C5FD' },
     changelog: { background: 'rgba(22,163,74,0.16)', color: '#86EFAC' },
@@ -174,7 +179,7 @@ export default function SourcesPage() {
     e.preventDefault();
 
     if (!name.trim()) {
-      alert('Add a competitor name first.');
+      alert('Add a system name first.');
       return;
     }
 
@@ -197,7 +202,7 @@ export default function SourcesPage() {
     e.preventDefault();
 
     if (!competitorId) {
-      alert('Add or select a competitor first.');
+      alert('Add or select a system first.');
       return;
     }
 
@@ -278,7 +283,7 @@ export default function SourcesPage() {
           <div>
             <h1 style={{ margin: 0 }}>Sources</h1>
             <p style={{ ...mutedStyle, marginBottom: 0 }}>
-              Manage competitors and monitored URLs.
+              Manage database systems and monitored intelligence sources.
             </p>
           </div>
 
@@ -296,36 +301,36 @@ export default function SourcesPage() {
           }}
         >
           <form onSubmit={addCompetitor} style={{ ...cardStyle, padding: 22 }}>
-            <h2 style={{ marginTop: 0 }}>Add competitor</h2>
+            <h2 style={{ marginTop: 0 }}>Add database system</h2>
             <p style={mutedStyle}>
-              Add the company. Monitoring starts only when you add specific
-              sources.
+              Track a database vendor, internal platform, service, or project.
+              Monitoring starts when you add specific sources.
             </p>
 
             <div style={{ display: 'grid', gap: 12 }}>
               <input
                 className="input"
-                placeholder="Company name, e.g. Anthropic"
+                placeholder="System name, e.g. Postgres Platform"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
 
               <input
                 className="input"
-                placeholder="Optional homepage, e.g. https://anthropic.com"
+                placeholder="Optional homepage, e.g. https://postgresql.org"
                 value={website}
                 onChange={(e) => setWebsite(e.target.value)}
               />
 
-              <button className="btn">Add competitor</button>
+              <button className="btn">Add system</button>
             </div>
           </form>
 
           <form onSubmit={addSource} style={{ ...cardStyle, padding: 22 }}>
             <h2 style={{ marginTop: 0 }}>Add source</h2>
             <p style={mutedStyle}>
-              Add pricing pages, docs, changelogs, GitHub repos, and release
-              notes.
+              Add schema docs, migration notes, status pages, benchmark reports,
+              pricing, release notes, and repos.
             </p>
 
             <div style={{ display: 'grid', gap: 12 }}>
@@ -334,7 +339,7 @@ export default function SourcesPage() {
                 value={competitorId}
                 onChange={(e) => setCompetitorId(e.target.value)}
               >
-                <option value="">Select competitor</option>
+                <option value="">Select system</option>
                 {competitors.map((competitor) => (
                   <option key={competitor.id} value={competitor.id}>
                     {competitor.name}
@@ -349,14 +354,14 @@ export default function SourcesPage() {
               >
                 {sourceTypes.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {sourceTypeLabels[type]}
                   </option>
                 ))}
               </select>
 
               <input
                 className="input"
-                placeholder="https://example.com/pricing"
+                placeholder="https://example.com/releases"
                 value={sourceUrl}
                 onChange={(e) => setSourceUrl(e.target.value)}
               />
@@ -369,13 +374,13 @@ export default function SourcesPage() {
         <section style={{ ...cardStyle, padding: 24 }}>
           <h2 style={{ marginTop: 0 }}>Monitored sources</h2>
           <p style={mutedStyle}>
-            {competitors.length} competitors · {sources.length} sources
+            {competitors.length} systems · {sources.length} sources
           </p>
 
           {loading && <p style={mutedStyle}>Loading...</p>}
 
           {!loading && competitors.length === 0 && (
-            <p style={mutedStyle}>No competitors yet.</p>
+            <p style={mutedStyle}>No database systems yet.</p>
           )}
 
           <div style={{ display: 'grid', gap: 16 }}>
@@ -420,7 +425,7 @@ export default function SourcesPage() {
                     className="btn"
                     onClick={() => deleteCompetitor(competitor.id, competitor.name)}
                   >
-                    Delete competitor
+                    Delete system
                   </button>
                 </div>
 
@@ -444,7 +449,9 @@ export default function SourcesPage() {
                       }}
                     >
                       <div style={{ display: 'grid', gap: 8 }}>
-                        <span style={badgeStyle(source.type)}>{source.type}</span>
+                        <span style={badgeStyle(source.type)}>
+                          {sourceTypeLabels[source.type as keyof typeof sourceTypeLabels] || source.type}
+                        </span>
                         <span style={statusBadgeStyle(source.last_status)}>
                           {statusLabel(source.last_status)}
                         </span>

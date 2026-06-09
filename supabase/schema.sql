@@ -19,10 +19,11 @@ create table monitored_sources (
   id uuid primary key default gen_random_uuid(),
   competitor_id uuid not null references competitors(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  type text not null check (type in ('website','pricing','docs','changelog','github')),
+  type text not null check (type in ('website','pricing','docs','changelog','github','schema','migration','incident','performance','benchmark','release')),
   url text not null,
   active boolean default true,
   last_checked_at timestamptz,
+  last_status text default 'not_checked' check (last_status in ('not_checked','baseline_created','unchanged','changed','error')),
   created_at timestamptz default now()
 );
 

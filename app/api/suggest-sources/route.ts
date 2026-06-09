@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SourceType } from '@/lib/sourceTypes';
 
 type SuggestedSource = {
-  type: 'pricing' | 'docs' | 'changelog' | 'github' | 'website';
+  type: SourceType;
   url: string;
 };
 
@@ -32,6 +33,18 @@ function buildSuggestions(website: string | null): SuggestedSource[] {
   const root = `https://${hostname}`;
 
   return [
+    {
+      type: 'release',
+      url: `${root}/releases`,
+    },
+    {
+      type: 'incident',
+      url: `${root}/status`,
+    },
+    {
+      type: 'benchmark',
+      url: `${root}/benchmarks`,
+    },
     {
       type: 'pricing',
       url: `${root}/pricing`,

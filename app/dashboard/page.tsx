@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { supabaseAnon } from '@/lib/supabaseClient';
+import { sourceTypeLabels } from '@/lib/sourceTypes';
 
 type Source = {
   id: string;
@@ -288,7 +289,7 @@ export default function Dashboard() {
                 fontWeight: 800,
               }}
             >
-              Competitive intelligence brief
+              Database intelligence brief
             </p>
 
             <h1
@@ -300,12 +301,13 @@ export default function Dashboard() {
                 margin: '0 0 16px',
               }}
             >
-              Your live competitor intelligence database.
+              Your live database intelligence platform.
             </h1>
 
             <p style={{ ...mutedStyle, fontSize: 18, maxWidth: 720 }}>
-              RivalSense monitors competitor docs, pricing pages, changelogs, and
-              release notes — then shows the current state and every meaningful change.
+              RivalSense monitors schema notes, migrations, incidents, benchmarks,
+              releases, docs, and pricing signals, then turns every meaningful
+              change into usable database intelligence.
             </p>
 
             <div
@@ -317,7 +319,7 @@ export default function Dashboard() {
               }}
             >
               <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Competitors</p>
+                <p style={{ ...mutedStyle, margin: 0 }}>Systems</p>
                 <strong style={{ fontSize: 34 }}>{competitorCount}</strong>
               </div>
 
@@ -332,7 +334,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Detected changes</p>
+                <p style={{ ...mutedStyle, margin: 0 }}>Intel changes</p>
                 <strong style={{ fontSize: 34 }}>{changes.length}</strong>
               </div>
             </div>
@@ -389,7 +391,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: 18 }}>
               <h2 style={{ margin: 0 }}>Current intelligence</h2>
               <p style={{ ...mutedStyle, marginBottom: 0 }}>
-                The latest known state of every monitored competitor source.
+                The latest known state of every monitored database signal.
               </p>
             </div>
 
@@ -412,8 +414,10 @@ export default function Dashboard() {
                     </span>
 
                     <h3 style={{ marginBottom: 6 }}>
-                      {change.monitored_sources?.competitors?.name || 'Competitor'} ·{' '}
-                      {change.monitored_sources?.type || 'source'}
+                      {change.monitored_sources?.competitors?.name || 'System'} ·{' '}
+                      {sourceTypeLabels[
+                        change.monitored_sources?.type as keyof typeof sourceTypeLabels
+                      ] || change.monitored_sources?.type || 'source'}
                     </h3>
 
                     <p style={mutedStyle}>
@@ -437,7 +441,7 @@ export default function Dashboard() {
               >
                 <h3 style={{ marginTop: 0 }}>No intelligence captured yet.</h3>
                 <p style={mutedStyle}>
-                  Add monitored sources, then run your first check to create baseline snapshots.
+                  Add monitored database sources, then run your first check to create baseline snapshots.
                 </p>
               </div>
             )}
@@ -468,7 +472,8 @@ export default function Dashboard() {
                         </span>
 
                         <h3 style={{ marginBottom: 6 }}>
-                          {item.competitor} · {item.type}
+                          {item.competitor} ·{' '}
+                          {sourceTypeLabels[item.type as keyof typeof sourceTypeLabels] || item.type}
                         </h3>
 
                         <p style={mutedStyle}>
@@ -487,8 +492,10 @@ export default function Dashboard() {
   }}
 >
   <div>
-    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Source type</p>
-    <strong style={{ textTransform: 'capitalize' }}>{item.type}</strong>
+    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Signal type</p>
+    <strong style={{ textTransform: 'capitalize' }}>
+      {sourceTypeLabels[item.type as keyof typeof sourceTypeLabels] || item.type}
+    </strong>
   </div>
 
   <div>
@@ -510,7 +517,7 @@ export default function Dashboard() {
     marginBottom: 0,
   }}
 >
-  Current version captured and monitored. RivalSense will surface a summary when this source changes.
+  Current version captured and monitored. RivalSense will surface a database intelligence summary when this source changes.
 </p>
 
                     <a
@@ -556,7 +563,7 @@ export default function Dashboard() {
                   {highPriorityChanges.slice(0, 4).map((change) => (
                     <div key={change.id}>
                       <strong>
-                        {change.monitored_sources?.competitors?.name || 'Competitor'}
+                        {change.monitored_sources?.competitors?.name || 'System'}
                       </strong>
                       <p style={{ ...mutedStyle, marginTop: 4 }}>
                         {change.summary}
