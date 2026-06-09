@@ -54,6 +54,28 @@ type CheckResult = {
   error?: string;
 };
 
+type QueryResult = {
+  id: string;
+  title: string;
+  summary: string;
+  strategic_insight?: string | null;
+  category: string;
+  topics: string[];
+  source_url?: string | null;
+  observed_at: string;
+  confidence_score?: number | null;
+  company?: string | null;
+};
+
+const querySuggestions = [
+  'Which companies are launching new database products?',
+  'Show pricing changes from the last month',
+  'What reliability incidents should I care about?',
+  'Which products added vector or AI features?',
+  'What migrations or schema changes were detected?',
+  'Which companies are competing with Postgres?',
+];
+
 const pageStyle: CSSProperties = {
   minHeight: '100vh',
   background:
@@ -124,6 +146,7 @@ function importanceLabel(score: number) {
 }
 
 export default function Dashboard() {
+  const [userId, setUserId] = useState('');
   const [sources, setSources] = useState<Source[]>([]);
   const [changes, setChanges] = useState<Change[]>([]);
   const [intelligence, setIntelligence] = useState<IntelligenceItem[]>([]);
@@ -131,6 +154,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+  const [query, setQuery] = useState('');
+  const [queryFocused, setQueryFocused] = useState(false);
+  const [querying, setQuerying] = useState(false);
+  const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
+  const [queryError, setQueryError] = useState('');
+  const [hasQueried, setHasQueried] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -145,6 +174,8 @@ export default function Dashboard() {
       window.location.href = '/login';
       return;
     }
+
+    setUserId(user.id);
 
     const comps = await supabase
       .from('competitors')
@@ -223,6 +254,46 @@ export default function Dashboard() {
     }
 
     setChecking(false);
+  }
+
+  async function askIntelligenceDatabase(searchQuery = query) {
+    const cleanQuery = searchQuery.trim();
+
+    if (!cleanQuery || !userId) return;
+
+    setQuery(cleanQuery);
+    setQuerying(true);
+    setQueryError('');
+    setHasQueried(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: cleanQuery,
+      });
+      const supabase = supabaseAnon();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch(`/api/query-intelligence?${params.toString()}`, {
+        headers: session?.access_token
+          ? { authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || 'Search failed.');
+      }
+
+      setQueryResults(Array.isArray(json.results) ? json.results : []);
+    } catch (error) {
+      setQueryError(error instanceof Error ? error.message : 'Search failed.');
+      setQueryResults([]);
+    }
+
+    setQuerying(false);
+    setQueryFocused(false);
   }
 
   return (
@@ -339,6 +410,157 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section style={{ ...cardStyle, padding: 24, marginBottom: 18 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ margin: 0 }}>Ask the intelligence database</h2>
+            <p style={{ ...mutedStyle, marginBottom: 0 }}>
+              Search market intelligence by company, product, topic, category, or strategic signal.
+            </p>
+          </div>
+
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              askIntelligenceDatabase();
+            }}
+            style={{ position: 'relative' }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                gap: 10,
+              }}
+            >
+              <input
+                className="input"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onFocus={() => setQueryFocused(true)}
+                onBlur={() => setQueryFocused(false)}
+                placeholder="Ask about launches, pricing, incidents, AI features, partnerships..."
+                style={{ minHeight: 46 }}
+              />
+
+              <button className="btn" disabled={querying || !query.trim()}>
+                {querying ? 'Searching...' : 'Ask'}
+              </button>
+            </div>
+
+            {queryFocused && (
+              <div
+                style={{
+                  position: 'absolute',
+                  zIndex: 5,
+                  top: 58,
+                  left: 0,
+                  right: 0,
+                  display: 'grid',
+                  gap: 8,
+                  padding: 12,
+                  borderRadius: 16,
+                  border: '1px solid rgba(148,163,184,0.18)',
+                  background: 'rgba(2,6,23,0.98)',
+                  boxShadow: '0 18px 60px rgba(0,0,0,0.38)',
+                }}
+              >
+                {querySuggestions
+                  .filter((suggestion) =>
+                    suggestion.toLowerCase().includes(query.toLowerCase().trim())
+                  )
+                  .slice(0, 5)
+                  .map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => askIntelligenceDatabase(suggestion)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        borderRadius: 12,
+                        border: '1px solid rgba(148,163,184,0.12)',
+                        background: 'rgba(15,23,42,0.78)',
+                        color: '#E2E8F0',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </form>
+
+          {queryError && <p style={{ color: '#FCA5A5' }}>{queryError}</p>}
+
+          {queryResults.length > 0 && (
+            <div style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+              {queryResults.map((result) => (
+                <article
+                  key={result.id}
+                  style={{
+                    padding: 18,
+                    borderRadius: 18,
+                    border: '1px solid rgba(148,163,184,0.16)',
+                    background: 'rgba(2,6,23,0.38)',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={statusBadgeStyle('baseline_created')}>
+                      {result.category}
+                    </span>
+                    {result.company && (
+                      <span style={statusBadgeStyle('not_checked')}>
+                        {result.company}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 style={{ marginBottom: 6 }}>{result.title}</h3>
+                  <p style={mutedStyle}>
+                    Observed {formatDate(result.observed_at)}
+                    {typeof result.confidence_score === 'number'
+                      ? ` · ${Math.round(result.confidence_score * 100)}% confidence`
+                      : ''}
+                  </p>
+                  <p>{result.summary}</p>
+
+                  {result.strategic_insight && (
+                    <p style={{ ...mutedStyle, marginBottom: 8 }}>
+                      {result.strategic_insight}
+                    </p>
+                  )}
+
+                  {result.topics.length > 0 && (
+                    <p style={{ ...mutedStyle, marginBottom: 8 }}>
+                      Topics: {result.topics.join(', ')}
+                    </p>
+                  )}
+
+                  {result.source_url && (
+                    <a
+                      href={result.source_url}
+                      target="_blank"
+                      style={{ color: '#93C5FD', overflowWrap: 'anywhere' }}
+                    >
+                      {result.source_url}
+                    </a>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+
+          {hasQueried && !querying && !queryError && queryResults.length === 0 && (
+            <p style={{ ...mutedStyle, marginBottom: 0, marginTop: 16 }}>
+              No matching intelligence items yet. As source changes become structured intelligence items,
+              this search will start returning answers.
+            </p>
+          )}
         </section>
 
         {checkResult && (
