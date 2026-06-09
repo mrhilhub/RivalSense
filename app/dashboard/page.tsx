@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { supabaseAnon } from '@/lib/supabaseClient';
@@ -66,18 +67,13 @@ type QueryResult = {
   company?: string | null;
 };
 
-type QueryAnswer = {
-  answer: string;
-  results: QueryResult[];
-};
-
 const querySuggestions = [
-  'What changed at Anthropic this week?',
-  'Which AI companies changed pricing recently?',
-  'What are competitors doing with agents?',
-  'Which companies launched new models?',
-  'What changed in OpenAI developer tools?',
-  'Which AI companies announced partnerships?',
+  'Which companies are launching new database products?',
+  'Show pricing changes from the last month',
+  'What reliability incidents should I care about?',
+  'Which products added vector or AI features?',
+  'What migrations or schema changes were detected?',
+  'Which companies are competing with Postgres?',
 ];
 
 const pageStyle: CSSProperties = {
@@ -155,14 +151,12 @@ export default function Dashboard() {
   const [changes, setChanges] = useState<Change[]>([]);
   const [intelligence, setIntelligence] = useState<IntelligenceItem[]>([]);
   const [competitorCount, setCompetitorCount] = useState(0);
-  const [intelligenceItemCount, setIntelligenceItemCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [query, setQuery] = useState('');
   const [queryFocused, setQueryFocused] = useState(false);
   const [querying, setQuerying] = useState(false);
-  const [queryAnswer, setQueryAnswer] = useState('');
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
   const [queryError, setQueryError] = useState('');
   const [hasQueried, setHasQueried] = useState(false);
@@ -183,32 +177,12 @@ export default function Dashboard() {
 
     setUserId(user.id);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (session?.access_token) {
-      await fetch('/api/bootstrap-defaults', {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${session.access_token}`,
-        },
-      }).catch(() => null);
-    }
-
     const comps = await supabase
       .from('competitors')
       .select('id')
       .eq('user_id', user.id);
 
     setCompetitorCount(comps.data?.length || 0);
-
-    const itemCount = await supabase
-      .from('intelligence_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id);
-
-    setIntelligenceItemCount(itemCount.count || 0);
 
     const sourceRows = await supabase
       .from('monitored_sources')
@@ -282,7 +256,7 @@ export default function Dashboard() {
     setChecking(false);
   }
 
-  async function askRivalSense(searchQuery = query) {
+  async function askIntelligenceDatabase(searchQuery = query) {
     const cleanQuery = searchQuery.trim();
 
     if (!cleanQuery || !userId) return;
@@ -291,7 +265,6 @@ export default function Dashboard() {
     setQuerying(true);
     setQueryError('');
     setHasQueried(true);
-    setQueryAnswer('');
 
     try {
       const params = new URLSearchParams({
@@ -313,9 +286,7 @@ export default function Dashboard() {
         throw new Error(json.error || 'Search failed.');
       }
 
-      const answer = json as QueryAnswer;
-      setQueryAnswer(answer.answer || '');
-      setQueryResults(Array.isArray(answer.results) ? answer.results : []);
+      setQueryResults(Array.isArray(json.results) ? json.results : []);
     } catch (error) {
       setQueryError(error instanceof Error ? error.message : 'Search failed.');
       setQueryResults([]);
@@ -350,8 +321,11 @@ export default function Dashboard() {
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
+            <Link className="btn" href="/dashboard/sources">
+              Manage sources
+            </Link>
             <button className="btn" onClick={runCheckNow} disabled={checking}>
-              {checking ? 'Updating...' : 'Refresh intel'}
+              {checking ? 'Checking...' : 'Run check'}
             </button>
           </div>
         </nav>
@@ -386,7 +360,7 @@ export default function Dashboard() {
                 fontWeight: 800,
               }}
             >
-              AI market intelligence
+              Database intelligence brief
             </p>
 
             <h1
@@ -398,12 +372,13 @@ export default function Dashboard() {
                 margin: '0 0 16px',
               }}
             >
-              Ask RivalSense anything about AI company changes.
+              Your live database intelligence platform.
             </h1>
 
             <p style={{ ...mutedStyle, fontSize: 18, maxWidth: 720 }}>
-              RivalSense tracks AI companies in the background, turns changes into
-              structured intelligence, and answers your questions with sources.
+              RivalSense monitors schema notes, migrations, incidents, benchmarks,
+              releases, docs, and pricing signals, then turns every meaningful
+              change into usable database intelligence.
             </p>
 
             <div
@@ -415,7 +390,7 @@ export default function Dashboard() {
               }}
             >
               <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>AI companies</p>
+                <p style={{ ...mutedStyle, margin: 0 }}>Systems</p>
                 <strong style={{ fontSize: 34 }}>{competitorCount}</strong>
               </div>
 
@@ -430,8 +405,8 @@ export default function Dashboard() {
               </div>
 
               <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Intelligence items</p>
-                <strong style={{ fontSize: 34 }}>{intelligenceItemCount}</strong>
+                <p style={{ ...mutedStyle, margin: 0 }}>Intel changes</p>
+                <strong style={{ fontSize: 34 }}>{changes.length}</strong>
               </div>
             </div>
           </div>
@@ -439,16 +414,16 @@ export default function Dashboard() {
 
         <section style={{ ...cardStyle, padding: 24, marginBottom: 18 }}>
           <div style={{ marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Ask RivalSense</h2>
+            <h2 style={{ margin: 0 }}>Ask the intelligence database</h2>
             <p style={{ ...mutedStyle, marginBottom: 0 }}>
-              Ask about AI company changes, pricing, agents, models, partnerships, and strategy.
+              Search market intelligence by company, product, topic, category, or strategic signal.
             </p>
           </div>
 
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              askRivalSense();
+              askIntelligenceDatabase();
             }}
             style={{ position: 'relative' }}
           >
@@ -465,7 +440,7 @@ export default function Dashboard() {
                 onChange={(event) => setQuery(event.target.value)}
                 onFocus={() => setQueryFocused(true)}
                 onBlur={() => setQueryFocused(false)}
-                placeholder="What changed at Anthropic this week?"
+                placeholder="Ask about launches, pricing, incidents, AI features, partnerships..."
                 style={{ minHeight: 46 }}
               />
 
@@ -501,7 +476,7 @@ export default function Dashboard() {
                       key={suggestion}
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => askRivalSense(suggestion)}
+                      onClick={() => askIntelligenceDatabase(suggestion)}
                       style={{
                         width: '100%',
                         textAlign: 'left',
@@ -522,26 +497,8 @@ export default function Dashboard() {
 
           {queryError && <p style={{ color: '#FCA5A5' }}>{queryError}</p>}
 
-          {queryAnswer && (
-            <div
-              style={{
-                marginTop: 18,
-                padding: 20,
-                borderRadius: 18,
-                border: '1px solid rgba(148,163,184,0.16)',
-                background: 'rgba(15,23,42,0.62)',
-              }}
-            >
-              <p style={{ ...mutedStyle, marginTop: 0 }}>Answer</p>
-              <p style={{ fontSize: 18, lineHeight: 1.6, marginBottom: 0 }}>
-                {queryAnswer}
-              </p>
-            </div>
-          )}
-
           {queryResults.length > 0 && (
             <div style={{ display: 'grid', gap: 12, marginTop: 18 }}>
-              <h3 style={{ marginBottom: 0 }}>Related intelligence</h3>
               {queryResults.map((result) => (
                 <article
                   key={result.id}
@@ -598,10 +555,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {hasQueried && !querying && !queryError && !queryAnswer && queryResults.length === 0 && (
+          {hasQueried && !querying && !queryError && queryResults.length === 0 && (
             <p style={{ ...mutedStyle, marginBottom: 0, marginTop: 16 }}>
-              No matching intelligence items yet. RivalSense is seeded with default AI companies;
-              run a refresh or wait for background collection to capture changes.
+              No matching intelligence items yet. As source changes become structured intelligence items,
+              this search will start returning answers.
             </p>
           )}
         </section>
@@ -656,7 +613,7 @@ export default function Dashboard() {
             <div style={{ marginBottom: 18 }}>
               <h2 style={{ margin: 0 }}>Current intelligence</h2>
               <p style={{ ...mutedStyle, marginBottom: 0 }}>
-                Recent AI company changes captured from background sources.
+                The latest known state of every monitored database signal.
               </p>
             </div>
 
@@ -706,7 +663,7 @@ export default function Dashboard() {
               >
                 <h3 style={{ marginTop: 0 }}>No intelligence captured yet.</h3>
                 <p style={mutedStyle}>
-                  RivalSense is setting up default AI company coverage. Run a refresh to create the first baselines.
+                  Add monitored database sources, then run your first check to create baseline snapshots.
                 </p>
               </div>
             )}
@@ -782,7 +739,7 @@ export default function Dashboard() {
     marginBottom: 0,
   }}
 >
-  Current version captured in the background. RivalSense will turn meaningful changes into searchable intelligence.
+  Current version captured and monitored. RivalSense will surface a database intelligence summary when this source changes.
 </p>
 
                     <a

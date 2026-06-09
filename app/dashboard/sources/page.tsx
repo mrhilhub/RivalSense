@@ -179,7 +179,7 @@ export default function SourcesPage() {
     e.preventDefault();
 
     if (!name.trim()) {
-      alert('Add an AI company name first.');
+      alert('Add a system name first.');
       return;
     }
 
@@ -202,7 +202,7 @@ export default function SourcesPage() {
     e.preventDefault();
 
     if (!competitorId) {
-      alert('Add or select an AI company first.');
+      alert('Add or select a system first.');
       return;
     }
 
@@ -283,7 +283,7 @@ export default function SourcesPage() {
           <div>
             <h1 style={{ margin: 0 }}>Sources</h1>
             <p style={{ ...mutedStyle, marginBottom: 0 }}>
-              Internal source coverage for AI company intelligence.
+              Manage database systems and monitored intelligence sources.
             </p>
           </div>
 
@@ -301,36 +301,36 @@ export default function SourcesPage() {
           }}
         >
           <form onSubmit={addCompetitor} style={{ ...cardStyle, padding: 22 }}>
-            <h2 style={{ marginTop: 0 }}>Add AI company</h2>
+            <h2 style={{ marginTop: 0 }}>Add database system</h2>
             <p style={mutedStyle}>
-              Add an AI company only when it is not already covered by the
-              curated background collection.
+              Track a database vendor, internal platform, service, or project.
+              Monitoring starts when you add specific sources.
             </p>
 
             <div style={{ display: 'grid', gap: 12 }}>
               <input
                 className="input"
-                placeholder="Company name, e.g. Anthropic"
+                placeholder="System name, e.g. Postgres Platform"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
 
               <input
                 className="input"
-                placeholder="Optional homepage, e.g. https://anthropic.com"
+                placeholder="Optional homepage, e.g. https://postgresql.org"
                 value={website}
                 onChange={(e) => setWebsite(e.target.value)}
               />
 
-              <button className="btn">Add AI company</button>
+              <button className="btn">Add system</button>
             </div>
           </form>
 
           <form onSubmit={addSource} style={{ ...cardStyle, padding: 22 }}>
             <h2 style={{ marginTop: 0 }}>Add source</h2>
             <p style={mutedStyle}>
-              Add product pages, pricing, docs, changelogs, release notes,
-              blogs, and repos.
+              Add schema docs, migration notes, status pages, benchmark reports,
+              pricing, release notes, and repos.
             </p>
 
             <div style={{ display: 'grid', gap: 12 }}>
@@ -339,7 +339,7 @@ export default function SourcesPage() {
                 value={competitorId}
                 onChange={(e) => setCompetitorId(e.target.value)}
               >
-                <option value="">Select AI company</option>
+                <option value="">Select system</option>
                 {competitors.map((competitor) => (
                   <option key={competitor.id} value={competitor.id}>
                     {competitor.name}
@@ -374,13 +374,13 @@ export default function SourcesPage() {
         <section style={{ ...cardStyle, padding: 24 }}>
           <h2 style={{ marginTop: 0 }}>Monitored sources</h2>
           <p style={mutedStyle}>
-            {competitors.length} AI companies · {sources.length} sources
+            {competitors.length} systems · {sources.length} sources
           </p>
 
           {loading && <p style={mutedStyle}>Loading...</p>}
 
           {!loading && competitors.length === 0 && (
-            <p style={mutedStyle}>No AI companies yet.</p>
+            <p style={mutedStyle}>No database systems yet.</p>
           )}
 
           <div style={{ display: 'grid', gap: 16 }}>
@@ -425,7 +425,7 @@ export default function SourcesPage() {
                     className="btn"
                     onClick={() => deleteCompetitor(competitor.id, competitor.name)}
                   >
-                    Delete AI company
+                    Delete system
                   </button>
                 </div>
 

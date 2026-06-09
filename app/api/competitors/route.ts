@@ -28,8 +28,16 @@ function buildSuggestedSources(website: string | null) {
 
     return [
       {
-        type: 'website',
-        url: `${root}/news`,
+        type: 'release',
+        url: `${root}/releases`,
+      },
+      {
+        type: 'incident',
+        url: `${root}/status`,
+      },
+      {
+        type: 'benchmark',
+        url: `${root}/benchmarks`,
       },
       {
         type: 'docs',

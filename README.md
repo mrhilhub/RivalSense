@@ -1,30 +1,21 @@
-# RivalSense AI Market Intelligence
+# RivalSense Database Intelligence Platform
 
-A Vercel-ready MVP for tracking AI companies in the background and turning source changes into searchable market intelligence. RivalSense stores raw snapshots internally, converts meaningful changes into `intelligence_items`, and lets users ask natural-language questions with source-backed answers.
+A Vercel-ready MVP for monitoring database systems, vendors, internal platforms, and project sources. It stores snapshots, detects meaningful changes, summarizes database-relevant impact with OpenAI, and can send email alerts via Resend.
 
 ## What it does
 
 - Supabase auth
-- Curated default AI companies and sources
-- Background collection through monitored sources and snapshots
-- Structured `intelligence_items` for LLM-ready market intelligence
-- Search-engine-style question box for AI company changes
+- Database system/source dashboard
 - URL crawler and boilerplate cleaner
 - Snapshot hashing
 - Text diffing
-- OpenAI summaries focused on product, pricing, models, agents, partnerships, platform, and strategic impact
+- OpenAI summaries focused on schema, migration, reliability, performance, release, pricing, and operational impact
 - Optional Resend email alerts
 - Vercel cron-compatible check endpoint
 
-## Product direction
+## Database intelligence sources
 
-Users should not need to manually manage lots of tracking sources. The tracking infrastructure remains internal. The main product experience is asking questions like:
-
-- What changed at Anthropic this week?
-- Which AI companies changed pricing recently?
-- What are competitors doing with agents?
-
-RivalSense answers from `intelligence_items` with related companies, observed dates, source URLs, and strategic insight.
+RivalSense can now classify monitored sources as schema, migration, incident, performance, benchmark, release, pricing, docs, changelog, GitHub, or website signals. The current implementation monitors public URLs and creates a baseline/current-state intelligence layer; database connectors can be added behind the same source/snapshot/change model.
 
 ## Quick local run
 
@@ -45,4 +36,4 @@ npm run dev
 
 ## MVP limitation
 
-This version monitors normal public web pages. Some sites block crawlers or require JS rendering. Add Browserless/Playwright later for those. The user-facing product should remain search-first while collection, sources, snapshots, and changes stay behind the scenes.
+This version monitors normal public web pages. Some sites block crawlers or require JS rendering. Add Browserless/Playwright later for those, and add native database connectors by writing extracted metadata into `snapshots`.
