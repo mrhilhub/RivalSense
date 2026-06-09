@@ -13,7 +13,19 @@ type IntelligenceSearchRow = {
   observed_at: string;
   confidence_score: number | null;
   company_id: string | null;
-  competitors?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+type SerializedIntelligenceResult = {
+  id: string;
+  title: string;
+  summary: string;
+  strategic_insight: string | null;
+  category: string;
+  topics: string[];
+  source_url: string | null;
+  observed_at: string;
+  confidence_score: number | null;
+  company: string | null;
 };
 
 function normalizeQuery(value: string) {
@@ -56,15 +68,7 @@ function queryTerms(query: string) {
   ).slice(0, 8);
 }
 
-function companyName(competitors?: IntelligenceSearchRow['competitors']) {
-  if (Array.isArray(competitors)) {
-    return competitors[0]?.name || null;
-  }
-
-  return competitors?.name || null;
-}
-
-function fallbackAnswer(query: string, results: Array<ReturnType<typeof serializeResult>>) {
+function fallbackAnswer(query: string, results: SerializedIntelligenceResult[]) {
   if (results.length === 0) {
     return `I could not find matching AI market intelligence for "${query}" yet. RivalSense will answer this once the background collection job captures relevant company changes.`;
   }
@@ -81,7 +85,10 @@ function fallbackAnswer(query: string, results: Array<ReturnType<typeof serializ
     .join(' ');
 }
 
-function serializeResult(item: IntelligenceSearchRow) {
+function serializeResult(
+  item: IntelligenceSearchRow,
+  companyName?: string | null
+): SerializedIntelligenceResult {
   return {
     id: item.id,
     title: item.title,
@@ -92,13 +99,13 @@ function serializeResult(item: IntelligenceSearchRow) {
     source_url: item.source_url,
     observed_at: item.observed_at,
     confidence_score: item.confidence_score,
-    company: companyName(item.competitors),
+    company: companyName || null,
   };
 }
 
 async function generateAnswer(
   query: string,
-  results: Array<ReturnType<typeof serializeResult>>
+  results: SerializedIntelligenceResult[]
 ) {
   if (!process.env.OPENAI_API_KEY || results.length === 0) {
     return fallbackAnswer(query, results);
@@ -183,7 +190,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from('intelligence_items')
     .select(
-      'id,title,summary,strategic_insight,category,topics,source_url,observed_at,confidence_score,company_id,competitors(name)'
+      'id,title,summary,strategic_insight,category,topics,source_url,observed_at,confidence_score,company_id'
     )
     .eq('user_id', user.id)
     .or(filters.join(','))
@@ -194,7 +201,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const results = ((data || []) as IntelligenceSearchRow[]).map(serializeResult);
+  const rows = (data || []) as IntelligenceSearchRow[];
+  const companyIds = Array.from(
+    new Set(rows.map((item) => item.company_id).filter(Boolean) as string[])
+  );
+  const companiesById = new Map<string, string>();
+
+  if (companyIds.length > 0) {
+    const { data: companies, error: companiesError } = await supabase
+      .from('competitors')
+      .select('id,name')
+      .eq('user_id', user.id)
+      .in('id', companyIds);
+
+    if (companiesError) {
+      return NextResponse.json({ error: companiesError.message }, { status: 500 });
+    }
+
+    for (const company of companies || []) {
+      companiesById.set(company.id as string, company.name as string);
+    }
+  }
+
+  const results = rows.map((item) =>
+    serializeResult(
+      item,
+      item.company_id ? companiesById.get(item.company_id) : null
+    )
+  );
   const answer = await generateAnswer(query, results);
 
   return NextResponse.json({ query, answer, results });
