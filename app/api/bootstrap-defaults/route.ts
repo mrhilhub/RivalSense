@@ -61,9 +61,25 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      companyId = createdCompany.id;
+      const createdCompanyId = createdCompany?.id;
+
+      if (!createdCompanyId) {
+        return NextResponse.json(
+          { error: `Failed to create ${company.name}` },
+          { status: 500 }
+        );
+      }
+
+      companyId = createdCompanyId;
       companiesByName.set(key, companyId);
       companiesCreated += 1;
+    }
+
+    if (!companyId) {
+      return NextResponse.json(
+        { error: `Missing company id for ${company.name}` },
+        { status: 500 }
+      );
     }
 
     const { data: existingSources, error: sourcesError } = await supabase
