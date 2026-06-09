@@ -1,9 +1,16 @@
 # RivalSense Market TODO
 
 ## Current Priorities
-- Finish minimal `intelligence_items` ingestion from detected changes
-- Verify `npm run build` and Vercel deploy on the next push
+- Maintain green local `npm run build` before every push
+- Maintain green Vercel deploy after every push
 - Keep messaging search-first and intelligence-first
+
+Status labels for implementation items:
+
+- `[DONE]` completed
+- `[DOING]` active
+- `[TODO]` not started
+- `[BLOCKED]` waiting on external input
 
 ## Vision
 RivalSense is building the historical intelligence layer for the AI industry.
@@ -182,13 +189,13 @@ Users should not manually configure dozens of sources.
 # Track 4: Intelligence Item Creation
 Every meaningful change should become an intelligence item.
 
-- Convert source changes into intelligence_items
-- Generate AI summaries
-- Generate strategic insights
-- Add topic extraction
-- Add category classification
-- Add confidence scoring
-- Add defensive error handling
+- [DONE] Convert source changes into intelligence_items
+- [TODO] Generate AI summaries
+- [TODO] Generate strategic insights
+- [TODO] Add topic extraction
+- [TODO] Add category classification
+- [TODO] Add confidence scoring
+- [DONE] Add defensive error handling
 
 Outputs:
 
