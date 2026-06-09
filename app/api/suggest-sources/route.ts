@@ -34,16 +34,8 @@ function buildSuggestions(website: string | null): SuggestedSource[] {
 
   return [
     {
-      type: 'release',
-      url: `${root}/releases`,
-    },
-    {
-      type: 'incident',
-      url: `${root}/status`,
-    },
-    {
-      type: 'benchmark',
-      url: `${root}/benchmarks`,
+      type: 'website',
+      url: `${root}/news`,
     },
     {
       type: 'pricing',

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     .from('monitored_sources')
     .select('*, competitors(name)')
     .eq('active', true)
-    .limit(25);
+    .limit(50);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -109,7 +109,12 @@ export async function GET(req: NextRequest) {
 
       const diff = makeDiffExcerpt(latest.raw_text, text);
 
+      const companyName = source.competitors?.name || 'AI company';
+      const sourceType = source.type || 'source';
+
       const ai = await summarizeChange({
+        company: companyName,
+        sourceType,
         url: source.url,
         oldText: latest.raw_text,
         newText: text,
@@ -130,6 +135,28 @@ export async function GET(req: NextRequest) {
         .select()
         .single();
 
+      await supabase.from('intelligence_items').insert({
+        user_id: source.user_id,
+        company_id: source.competitor_id,
+        source_id: source.id,
+        change_id: change?.id,
+        title: ai.title,
+        summary: ai.summary,
+        strategic_insight: ai.strategic_insight,
+        category: ai.category,
+        topics: ai.topics,
+        source_url: source.url,
+        observed_at: new Date().toISOString(),
+        confidence_score: ai.confidence_score,
+        metadata: {
+          company: companyName,
+          source_type: sourceType,
+          importance_score: ai.importance_score || 3,
+          previous_snapshot_id: latest.id,
+          current_snapshot_id: snapshot?.id,
+        },
+      });
+
       await updateSourceStatus(source.id, 'changed');
 
       const { data: user } = await supabase.auth.admin.getUserById(
@@ -139,14 +166,11 @@ export async function GET(req: NextRequest) {
       const email = user.user?.email;
 
       if (email) {
-        const systemName = source.competitors?.name || 'System';
-        const sourceType = source.type || 'source';
-
         await sendAlert(
   email,
-  `RivalSense database alert: ${systemName} ${sourceType} changed`,
+  `RivalSense alert: ${companyName} ${sourceType} changed`,
   buildChangeEmail({
-    system: systemName,
+    company: companyName,
     sourceType,
     sourceUrl: source.url,
     summary: ai.summary,

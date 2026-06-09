@@ -34,7 +34,7 @@ export async function sendAlert(
 }
 
 export function buildChangeEmail(params: {
-  system: string;
+  company: string;
   sourceType: string;
   sourceUrl: string;
   summary: string;
@@ -44,16 +44,16 @@ export function buildChangeEmail(params: {
   <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:24px;">
     
     <h1 style="margin-bottom:8px;">
-      RivalSense Database Alert
+      RivalSense Market Intelligence Alert
     </h1>
 
     <p style="color:#666;">
-      A monitored database intelligence source has changed.
+      A tracked AI company source has changed.
     </p>
 
     <hr />
 
-    <h2>${params.system}</h2>
+    <h2>${params.company}</h2>
 
     <p>
       <strong>Source Type:</strong>
