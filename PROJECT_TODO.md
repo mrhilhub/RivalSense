@@ -1,10 +1,32 @@
 # RivalSense Market TODO
 
 ## Current Priorities
-- Maintain green local `npm run build` before every push
-- Maintain green Vercel deploy after every push
-- Keep messaging search-first and intelligence-first
+- ✅ Maintain green local `npm run build` before every push
+- ✅ Maintain green Vercel deploy after every push
+- ✅ Keep messaging search-first and intelligence-first
+- **[URGENT]** Apply Track 2 migrations to Supabase
+- **[URGENT]** Backfill embeddings for existing intelligence_items
+- **[URGENT]** Test end-to-end flow: Check → Embed → Store → Search
 - Future: Add deployment protection or access control to `/api/check` endpoint
+
+**ACTION ITEMS FOR DA BOSS:**
+
+1. **Apply Migrations** (5 minutes)
+   - Go to Supabase Dashboard → SQL Editor
+   - Copy contents from `supabase/migrations/202606090002_intelligence_items_text_search.sql`
+   - Execute in SQL Editor
+   - Repeat for `supabase/migrations/202606090003_update_tracking_source_types.sql`
+   - See `docs/MIGRATION_DEPLOYMENT.md` for detailed steps
+
+2. **Backfill Embeddings** (10-30 minutes depending on data size)
+   - Run: `npx ts-node scripts/backfill-embeddings.ts --limit 100`
+   - Or dry-run first: `npx ts-node scripts/backfill-embeddings.ts --limit 100 --dry-run`
+   - Monitor console output for success/failure counts
+
+3. **Run E2E Tests** (5 minutes)
+   - Run dev server: `npm run dev`
+   - In another terminal: `npx ts-node scripts/test-e2e.ts`
+   - All tests should pass
 
 Status labels for implementation items:
 
