@@ -146,14 +146,43 @@ Not:
 ---
 
 # Track 2: Intelligence Database Foundation
+**[DOING]** - Building solid intelligence database. Created migration files with embeddings, text search, and utility functions. Integrated OpenAI embeddings into /api/check. Added new search API endpoint.
 
-- Verify intelligence database migration
-- Verify Supabase compatibility
-- Create intelligence_items table
-- Create entity extraction pipeline
-- Add embeddings support
-- Add semantic search support
-- Add retrieval RPCs
+**Completed:**
+- ✅ Created migration 202606090002_intelligence_items_text_search.sql - Full-text search, review tracking, quality scoring
+- ✅ Created migration 202606090003_update_tracking_source_types.sql - Company denormalization, impact assessment, utility functions
+- ✅ Implemented generateEmbedding() and generateIntelligenceEmbedding() in lib/embeddings.ts
+- ✅ Updated /api/check to generate embeddings when creating intelligence_items
+- ✅ Added new fields: source_quality_score, is_reviewed, language, estimated_impact, affected_entities
+- ✅ Created /api/search-intelligence endpoint with semantic + text search fallback
+
+**In Progress:**
+- 🔄 Deploy migrations to Supabase production
+- 🔄 Verify intelligence_items table has all new columns
+- 🔄 Test end-to-end embedding generation and retrieval
+
+**TODO:**
+- Entity extraction pipeline (extract companies, people, topics from summaries)
+- Add confidence scoring refinement
+- Batch embeddings generation for backfill
+- Create admin API for backfilling missing embeddings
+
+**Database Schema Added:**
+- `intelligence_items.full_text_search` - Generated tsvector for FTS
+- `intelligence_items.source_quality_score` - 0-1 quality rating of source
+- `intelligence_items.is_reviewed` - Manual review flag
+- `intelligence_items.language` - Language detection (default 'en')
+- `intelligence_items.estimated_impact` - high/medium/low impact assessment
+- `intelligence_items.affected_entities` - Array of affected company/product names
+- `intelligence_items.company_name` - Denormalized for faster queries
+
+**New Functions:**
+- `search_intelligence_items()` - Vector semantic search
+- `search_intelligence_by_text()` - Full-text search
+- `get_intelligence_by_company()` - Retrieve by company name
+- `get_high_confidence_intelligence()` - Filter by confidence threshold
+- `get_recent_intelligence()` - Time-based retrieval
+- `update_intelligence_item_company_name()` - Trigger for denormalization
 
 Keep existing tables:
 

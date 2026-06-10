@@ -32,7 +32,7 @@ npm run dev
 3. Import the repo into Vercel.
 4. Add the environment variables from `.env.example`.
 5. Deploy.
-6. Add a Vercel cron job or hit `/api/check?secret=YOUR_CRON_SECRET` manually.
+6. Add a Vercel cron job or hit `/api/check` manually.
 
 ## MVP limitation
 

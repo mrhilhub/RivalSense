@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/check?secret=change-this-secret",
+      "path": "/api/check",
       "schedule": "0 13 * * *"
     }
   ]

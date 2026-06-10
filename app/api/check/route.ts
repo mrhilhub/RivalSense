@@ -4,6 +4,7 @@ import { fetchCleanText, hashText } from '@/lib/crawler';
 import { makeDiffExcerpt } from '@/lib/diff';
 import { summarizeChange } from '@/lib/summarize';
 import { sendAlert, buildChangeEmail } from '@/lib/email';
+import { generateIntelligenceEmbedding } from '@/lib/embeddings';
 
 export const maxDuration = 60;
 
@@ -135,6 +136,15 @@ export async function GET(req: NextRequest) {
       const companyName = getCompanyName(source);
       const sourceType = source.type || 'company_update';
 
+      let embedding: number[] | null = null;
+      const title = `${companyName} ${sourceType} changed`;
+
+      try {
+        embedding = await generateIntelligenceEmbedding(title, ai.summary, ai.summary);
+      } catch (embedError) {
+        console.error('Failed to generate embedding, continuing without it:', embedError);
+      }
+
       const { error: intelligenceError } = await supabase
         .from('intelligence_items')
         .insert({
@@ -142,7 +152,7 @@ export async function GET(req: NextRequest) {
           company_id: source.competitor_id,
           source_id: source.id,
           change_id: change?.id,
-          title: `${companyName} ${sourceType} changed`,
+          title: title,
           summary: ai.summary,
           strategic_insight: ai.summary,
           category: sourceType,
@@ -150,11 +160,15 @@ export async function GET(req: NextRequest) {
           source_url: source.url,
           observed_at: new Date().toISOString(),
           confidence_score: 0.7,
+          source_quality_score: 0.7,
+          language: 'en',
+          estimated_impact: ai.importance_score >= 4 ? 'high' : ai.importance_score >= 2 ? 'medium' : 'low',
           metadata: {
             importance_score: ai.importance_score || 3,
             previous_snapshot_id: latest.id,
             current_snapshot_id: snapshot?.id,
           },
+          ...(embedding && { embedding }),
         });
 
       if (intelligenceError) {
