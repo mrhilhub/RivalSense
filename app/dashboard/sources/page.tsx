@@ -283,7 +283,7 @@ export default function SourcesPage() {
           <div>
             <h1 style={{ margin: 0 }}>Sources</h1>
             <p style={{ ...mutedStyle, marginBottom: 0 }}>
-              Manage database systems and monitored intelligence sources.
+              Add AI companies and configure sources to track their intelligence.
             </p>
           </div>
 
@@ -301,16 +301,16 @@ export default function SourcesPage() {
           }}
         >
           <form onSubmit={addCompetitor} style={{ ...cardStyle, padding: 22 }}>
-            <h2 style={{ marginTop: 0 }}>Add database system</h2>
+            <h2 style={{ marginTop: 0 }}>Add AI company</h2>
             <p style={mutedStyle}>
-              Track a database vendor, internal platform, service, or project.
-              Monitoring starts when you add specific sources.
+              Add an AI company to track. Intelligence collection begins when you
+              configure sources for the company.
             </p>
 
             <div style={{ display: 'grid', gap: 12 }}>
               <input
                 className="input"
-                placeholder="System name, e.g. Postgres Platform"
+                placeholder="Company name, e.g. Anthropic"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -329,8 +329,8 @@ export default function SourcesPage() {
           <form onSubmit={addSource} style={{ ...cardStyle, padding: 22 }}>
             <h2 style={{ marginTop: 0 }}>Add source</h2>
             <p style={mutedStyle}>
-              Add schema docs, migration notes, status pages, benchmark reports,
-              pricing, release notes, and repos.
+              Track documentation, pricing pages, release notes, blog posts,
+              GitHub repos, and news to detect strategic shifts.
             </p>
 
             <div style={{ display: 'grid', gap: 12 }}>
@@ -339,7 +339,7 @@ export default function SourcesPage() {
                 value={competitorId}
                 onChange={(e) => setCompetitorId(e.target.value)}
               >
-                <option value="">Select system</option>
+                <option value="">Select company</option>
                 {competitors.map((competitor) => (
                   <option key={competitor.id} value={competitor.id}>
                     {competitor.name}
@@ -380,7 +380,7 @@ export default function SourcesPage() {
           {loading && <p style={mutedStyle}>Loading...</p>}
 
           {!loading && competitors.length === 0 && (
-            <p style={mutedStyle}>No database systems yet.</p>
+            <p style={mutedStyle}>No companies yet.</p>
           )}
 
           <div style={{ display: 'grid', gap: 16 }}>

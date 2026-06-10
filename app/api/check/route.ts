@@ -44,12 +44,6 @@ function getCompanyName(source: { competitors?: { name?: string | null } | { nam
 }
 
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret');
-
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const supabase = supabaseAdmin();
 
   const { data: sources, error } = await supabase

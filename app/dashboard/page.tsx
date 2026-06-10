@@ -237,14 +237,7 @@ export default function Dashboard() {
     setCheckResult(null);
 
     try {
-      const secret = window.prompt('Enter your CRON_SECRET');
-
-      if (!secret) {
-        setChecking(false);
-        return;
-      }
-
-      const res = await fetch('/api/check?secret=' + encodeURIComponent(secret));
+      const res = await fetch('/api/check');
       const json = await res.json();
 
       setCheckResult(json);
@@ -360,7 +353,7 @@ export default function Dashboard() {
                 fontWeight: 800,
               }}
             >
-              Database intelligence brief
+              AI company intelligence
             </p>
 
             <h1
@@ -372,13 +365,13 @@ export default function Dashboard() {
                 margin: '0 0 16px',
               }}
             >
-              Your live database intelligence platform.
+              Stay ahead of the AI industry.
             </h1>
 
             <p style={{ ...mutedStyle, fontSize: 18, maxWidth: 720 }}>
-              RivalSense monitors schema notes, migrations, incidents, benchmarks,
-              releases, docs, and pricing signals, then turns every meaningful
-              change into usable database intelligence.
+              RivalSense continuously monitors AI companies for product launches,
+              pricing changes, documentation updates, and strategic shifts. Get sourced
+              intelligence delivered directly to your dashboard.
             </p>
 
             <div
@@ -390,7 +383,7 @@ export default function Dashboard() {
               }}
             >
               <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Systems</p>
+                <p style={{ ...mutedStyle, margin: 0 }}>Companies</p>
                 <strong style={{ fontSize: 34 }}>{competitorCount}</strong>
               </div>
 
@@ -405,7 +398,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Intel changes</p>
+                <p style={{ ...mutedStyle, margin: 0 }}>Changes detected</p>
                 <strong style={{ fontSize: 34 }}>{changes.length}</strong>
               </div>
             </div>
