@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/check",
+      "path": "/api/check-default-companies",
       "schedule": "0 13 * * *"
     }
   ]

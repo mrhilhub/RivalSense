@@ -12,6 +12,7 @@ A Vercel-ready MVP for monitoring database systems, vendors, internal platforms,
 - AI summaries focused on schema, migration, reliability, performance, release, pricing, and operational impact, using Groq when configured and a built-in fallback otherwise
 - Optional Resend email alerts
 - Vercel cron-compatible check endpoint
+- Dedicated automated checks for the default AI-company universe
 
 ## Database intelligence sources
 
@@ -24,6 +25,18 @@ npm install
 cp .env.example .env.local
 npm run dev
 ```
+
+## Seed major AI companies
+
+Add a broader intelligence universe for a signed-in user by seeding major AI companies and their tracked sources:
+
+```bash
+npm run seed:ai-universe -- --user-id <supabase-user-uuid>
+```
+
+This seeds the default AI company universe, tracked sources, and a small historic intelligence timeline for each company.
+
+Use `--dry-run` first if you want to preview the competitors and sources that will be created.
 
 ## Deploy
 

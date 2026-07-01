@@ -13,6 +13,7 @@ type Source = {
   active: boolean;
   last_checked_at?: string | null;
   last_status?: string | null;
+  is_system?: boolean;
 };
 
 type Change = {
@@ -39,6 +40,18 @@ type IntelligenceItem = {
   last_status?: string | null;
   snapshot_created_at?: string | null;
   current_preview: string;
+};
+
+type BootstrapResult = {
+  success: boolean;
+  createdCompanies?: number;
+  createdSources?: number;
+};
+
+type AutomationHealth = {
+  lastRanAt: string | null;
+  checkedSources: number;
+  failedSources: number;
 };
 
 type CheckResultItem = {
@@ -167,6 +180,10 @@ export default function Dashboard() {
     const supabase = supabaseAnon();
 
     const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const {
       data: { user },
     } = await supabase.auth.getUser();
 
@@ -177,6 +194,18 @@ export default function Dashboard() {
 
     setUserId(user.id);
 
+    if (session?.access_token) {
+      await fetch('/api/bootstrap-ai-universe', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session.access_token}`,
+        },
+      })
+        .then((response) => response.json())
+        .catch(() => ({ success: false } as BootstrapResult));
+    }
+
     const comps = await supabase
       .from('competitors')
       .select('id')
@@ -186,7 +215,7 @@ export default function Dashboard() {
 
     const sourceRows = await supabase
       .from('monitored_sources')
-      .select('id,type,url,active,last_checked_at,last_status')
+      .select('id,type,url,active,last_checked_at,last_status,is_system')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -227,6 +256,22 @@ export default function Dashboard() {
         : null;
 
     return { total, healthy, errors, lastCheckedAt };
+  }, [sources]);
+
+  const automation = useMemo<AutomationHealth>(() => {
+    const systemSources = sources.filter((source) => source.is_system);
+    const checkedSources = systemSources.filter((source) => Boolean(source.last_checked_at)).length;
+    const failedSources = systemSources.filter((source) => source.last_status === 'error').length;
+
+    const lastRanDates = systemSources
+      .map((source) => source.last_checked_at)
+      .filter(Boolean)
+      .map((value) => new Date(value as string).getTime());
+
+    const lastRanAt =
+      lastRanDates.length > 0 ? new Date(Math.max(...lastRanDates)).toISOString() : null;
+
+    return { lastRanAt, checkedSources, failedSources };
   }, [sources]);
 
   const highPriorityChanges = changes.filter((change) => change.importance_score >= 4);
@@ -400,6 +445,16 @@ export default function Dashboard() {
               <div style={{ ...cardStyle, padding: 18 }}>
                 <p style={{ ...mutedStyle, margin: 0 }}>Changes detected</p>
                 <strong style={{ fontSize: 34 }}>{changes.length}</strong>
+              </div>
+
+              <div style={{ ...cardStyle, padding: 18 }}>
+                <p style={{ ...mutedStyle, margin: 0 }}>Default-company cron</p>
+                <strong style={{ fontSize: 34 }}>
+                  {automation.lastRanAt ? formatDate(automation.lastRanAt) : 'Not yet run'}
+                </strong>
+                <p style={{ ...mutedStyle, margin: '6px 0 0' }}>
+                  {automation.checkedSources} checked, {automation.failedSources} failed
+                </p>
               </div>
             </div>
           </div>

@@ -1,5 +1,88 @@
 # RivalSense Market TODO
 
+---
+
+## Session Changelog — 2026-06-30
+
+This documents every engineering change made in the 2026-06-30 work session.
+
+### AI Provider Migration
+- Replaced hard OpenAI dependency with a **Groq-first, local-fallback** AI path.
+- App now works without an OpenAI key. Groq is used when `GROQ_API_KEY` is set; otherwise a deterministic local summarizer and a 1536-dim embedding generator are used.
+
+### Embedding Backfill Fix
+- Fixed CLI argument parsing in `scripts/backfill-embeddings.ts` (`--limit`, `--batch-size`, `--dry-run`, `--user-id`).
+- Aligned local embedding dimensions to 1536 to match the pgvector column.
+- Verified backfill runs and updates rows without failures.
+
+### Search Authentication Fix
+- Fixed `app/api/search-intelligence/route.ts` to use the user's auth context correctly.
+- Semantic search now returns results scoped to the signed-in user instead of returning empty results.
+
+### Hybrid Search
+- `app/api/search-intelligence` now runs semantic vector search first, falls back to full-text search, and detects stale/placeholder summaries and refreshes them live before returning.
+
+### Default AI Company Universe
+- Added `lib/aiCompanyUniverse.ts` — typed catalog of 11 major AI companies with tracked sources (website, docs, pricing, changelog, release, incident, GitHub).
+- Added `lib/bootstrapAiUniverse.ts` — idempotent per-user bootstrap that creates competitors and sources marked `is_system` (delete-protected).
+- Added `app/api/bootstrap-ai-universe/route.ts` — authenticated POST endpoint; called on dashboard load.
+- Added `supabase/migrations/202606300001_system_ai_universe.sql` — adds `is_system` column to competitors and monitored_sources, and a trigger that prevents deletion of system rows.
+- Updated `app/dashboard/page.tsx` and `app/dashboard/sources/page.tsx` to block deletion of system companies and sources in the UI.
+
+### Larger Source Catalog
+- Expanded every default company's tracked source list to include more signal types: status pages, additional docs subsections, GitHub orgs, and secondary release feeds.
+- Each company now tracks between 4–7 sources instead of 3–4.
+
+### Historic Intelligence Seeding
+- Added `lib/historicIntelligenceSeeds.ts` — curated catalog of 3 dated intelligence items per company (33 total), covering product launches, pricing moves, and documentation maturity.
+- Wired historic seeding into `bootstrapAiUniverseForUser()` so every new user automatically gets a pre-populated intelligence timeline on first login.
+- Seeds are idempotent — re-running bootstrap never duplicates a row (keyed by `metadata.seed_key`).
+- Updated `scripts/seed-ai-universe.ts` to seed companies, sources, and historic intelligence in a single command.
+- Updated `app/api/bootstrap-ai-universe/route.ts` to use the service-role client for writes after verifying the user token.
+
+### Automated Default-Company Checks
+- Extracted all crawl/snapshot/diff/summarize/embed logic into `lib/runSourceChecks.ts` with a `scope` param (`'all'` or `'system'`).
+- `app/api/check/route.ts` now delegates to the shared runner (scope `'all'`); the manual Run Check button on the dashboard still sweeps every active source.
+- Added `app/api/check-default-companies/route.ts` (scope `'system'`) — dedicated cron endpoint for the seeded universe only.
+- Updated `vercel.json` cron to hit `/api/check-default-companies` daily at 13:00 UTC instead of the general check.
+- Previous source limit of 25 is gone; the runner pages through all matching rows in batches of 50.
+
+### Dashboard — Automation Visibility
+- Added a **Default-company cron** metric card to the main dashboard showing the last time the automation ran, how many system sources were checked, and how many failed.
+- Added the same three-card automation summary to the sources management page.
+- Both pages derive this from the `is_system` flag and `last_checked_at` on monitored_sources — no new storage required.
+
+### Build Hygiene
+- Fixed `useEffect` exhaustive-deps lint warning in `app/dashboard/sources/page.tsx` by wrapping `load` in `useCallback`.
+- Removed deprecated TypeScript `baseUrl` and `ignoreDeprecations` compiler options from `tsconfig.json`.
+- Build now passes with **zero warnings and zero errors**.
+
+### Files Changed
+| File | Change |
+|---|---|
+| `lib/ai.ts` | Groq + local fallback for summaries and embeddings |
+| `lib/summarize.ts` | Re-exports summarizeChange from lib/ai |
+| `lib/embeddings.ts` | 1536-dim local embeddings; backfill orchestration |
+| `lib/aiCompanyUniverse.ts` | Default 11-company catalog (new file) |
+| `lib/bootstrapAiUniverse.ts` | Idempotent per-user bootstrap + historic seed (new file) |
+| `lib/historicIntelligenceSeeds.ts` | 33 curated historic intelligence items (new file) |
+| `lib/runSourceChecks.ts` | Shared crawler/diff/AI/embed pipeline (new file) |
+| `app/api/check/route.ts` | Delegates to shared runner |
+| `app/api/check-default-companies/route.ts` | Cron-targeted system-only check (new file) |
+| `app/api/bootstrap-ai-universe/route.ts` | Authenticated bootstrap + historic seed (new file) |
+| `app/api/search-intelligence/route.ts` | Hybrid search + stale row refresh |
+| `app/dashboard/page.tsx` | Bootstrap on load; automation metric card; system-source guard |
+| `app/dashboard/sources/page.tsx` | Automation summary; system delete guards; useCallback fix |
+| `scripts/seed-ai-universe.ts` | Seeds companies + sources + historic intelligence |
+| `scripts/backfill-embeddings.ts` | Fixed CLI arg parsing |
+| `supabase/migrations/202606300001_system_ai_universe.sql` | is_system columns + delete-prevention trigger |
+| `vercel.json` | Cron points at /api/check-default-companies |
+| `tsconfig.json` | Removed deprecated baseUrl and ignoreDeprecations |
+| `package.json` | Added seed:ai-universe script |
+| `README.md` | Updated operator docs |
+
+---
+
 ## Current Priorities
 - ✅ Maintain green local `npm run build` before every push
 - ✅ Maintain green Vercel deploy after every push
@@ -244,6 +327,14 @@ Initial companies:
 - Auto-seed after onboarding
 - Verify deployments
 
+Status update:
+- ✅ Added a reusable AI-company universe config with major public sources
+- ✅ Added an idempotent seed script for user-specific competitor/source setup
+- ✅ Expanded the default source catalog for each company
+- ✅ Added historic intelligence seeding so new users start with useful backfill data
+- ✅ Added automated default-company checks via cron
+- 🔄 Run the seed script for existing users and then backfill/check to start growing historic coverage
+
 Users should not manually configure dozens of sources.
 
 ---
@@ -358,6 +449,9 @@ This is the moat.
 
 - Preserve historical intelligence
 - Store all intelligence indefinitely
+
+Current direction:
+- Grow the source universe first, then accumulate history through repeated checks and backfills
 - Build company timelines
 - Build topic timelines
 - Build pricing history

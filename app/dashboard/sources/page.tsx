@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { supabaseAnon } from '@/lib/supabaseClient';
 import { sourceTypeLabels, sourceTypes } from '@/lib/sourceTypes';
@@ -10,6 +10,7 @@ type Competitor = {
   id: string;
   name: string;
   website: string | null;
+  is_system?: boolean;
 };
 
 type Source = {
@@ -22,9 +23,17 @@ type Source = {
   created_at: string;
   last_checked_at?: string | null;
   last_status?: string | null;
+  is_system?: boolean;
   competitors?: {
     name: string;
+    is_system?: boolean;
   };
+};
+
+type AutomationHealth = {
+  lastRanAt: string | null;
+  checkedSources: number;
+  failedSources: number;
 };
 
 const pageStyle: CSSProperties = {
@@ -125,10 +134,14 @@ export default function SourcesPage() {
   const [sourceType, setSourceType] = useState('pricing');
   const [competitorId, setCompetitorId] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
 
     const supabase = supabaseAnon();
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     const {
       data: { user },
@@ -140,6 +153,16 @@ export default function SourcesPage() {
     }
 
     setUserId(user.id);
+
+    if (session?.access_token) {
+      await fetch('/api/bootstrap-ai-universe', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${session.access_token}`,
+        },
+      }).catch(() => null);
+    }
 
     const comps = await supabase
       .from('competitors')
@@ -156,17 +179,17 @@ export default function SourcesPage() {
 
     const sourceRows = await supabase
       .from('monitored_sources')
-      .select('*, competitors(name)')
+      .select('*, competitors(name,is_system)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     setSources((sourceRows.data || []) as Source[]);
     setLoading(false);
-  }
+  }, [competitorId]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const sourcesByCompetitor = useMemo(() => {
     return competitors.map((competitor) => ({
@@ -174,6 +197,22 @@ export default function SourcesPage() {
       sources: sources.filter((source) => source.competitor_id === competitor.id),
     }));
   }, [competitors, sources]);
+
+  const automation = useMemo<AutomationHealth>(() => {
+    const systemSources = sources.filter((source) => source.is_system);
+    const checkedSources = systemSources.filter((source) => Boolean(source.last_checked_at)).length;
+    const failedSources = systemSources.filter((source) => source.last_status === 'error').length;
+
+    const lastRanDates = systemSources
+      .map((source) => source.last_checked_at)
+      .filter(Boolean)
+      .map((value) => new Date(value as string).getTime());
+
+    const lastRanAt =
+      lastRanDates.length > 0 ? new Date(Math.max(...lastRanDates)).toISOString() : null;
+
+    return { lastRanAt, checkedSources, failedSources };
+  }, [sources]);
 
   async function addCompetitor(e: FormEvent) {
     e.preventDefault();
@@ -227,6 +266,12 @@ export default function SourcesPage() {
   }
 
   async function deleteSource(id: string) {
+    const source = sources.find((item) => item.id === id);
+    if (source?.is_system || source?.competitors?.is_system) {
+      alert('These default AI sources are required and cannot be deleted.');
+      return;
+    }
+
     const confirmed = window.confirm('Delete this monitored source?');
     if (!confirmed) return;
 
@@ -242,6 +287,12 @@ export default function SourcesPage() {
   }
 
   async function deleteCompetitor(id: string, competitorName: string) {
+    const competitor = competitors.find((item) => item.id === id);
+    if (competitor?.is_system) {
+      alert('These default AI companies are required and cannot be deleted.');
+      return;
+    }
+
     const confirmed = window.confirm(
       `Delete ${competitorName} and all monitored sources attached to it?`
     );
@@ -377,6 +428,32 @@ export default function SourcesPage() {
             {competitors.length} systems · {sources.length} sources
           </p>
 
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 12,
+              marginBottom: 18,
+            }}
+          >
+            <div style={{ ...cardStyle, padding: 16 }}>
+              <p style={{ ...mutedStyle, margin: 0 }}>Default-company cron</p>
+              <strong style={{ fontSize: 24 }}>
+                {automation.lastRanAt ? formatDate(automation.lastRanAt) : 'Not yet run'}
+              </strong>
+            </div>
+
+            <div style={{ ...cardStyle, padding: 16 }}>
+              <p style={{ ...mutedStyle, margin: 0 }}>Checked</p>
+              <strong style={{ fontSize: 24 }}>{automation.checkedSources}</strong>
+            </div>
+
+            <div style={{ ...cardStyle, padding: 16 }}>
+              <p style={{ ...mutedStyle, margin: 0 }}>Failed</p>
+              <strong style={{ fontSize: 24 }}>{automation.failedSources}</strong>
+            </div>
+          </div>
+
           {loading && <p style={mutedStyle}>Loading...</p>}
 
           {!loading && competitors.length === 0 && (
@@ -421,12 +498,16 @@ export default function SourcesPage() {
                     )}
                   </div>
 
-                  <button
-                    className="btn"
-                    onClick={() => deleteCompetitor(competitor.id, competitor.name)}
-                  >
-                    Delete system
-                  </button>
+                  {competitor.is_system ? (
+                    <span style={badgeStyle('website')}>Required</span>
+                  ) : (
+                    <button
+                      className="btn"
+                      onClick={() => deleteCompetitor(competitor.id, competitor.name)}
+                    >
+                      Delete system
+                    </button>
+                  )}
                 </div>
 
                 {sources.length === 0 && (
@@ -471,9 +552,13 @@ export default function SourcesPage() {
                         </p>
                       </div>
 
-                      <button className="btn" onClick={() => deleteSource(source.id)}>
-                        Delete
-                      </button>
+                      {source.is_system ? (
+                        <span style={badgeStyle('website')}>Required</span>
+                      ) : (
+                        <button className="btn" onClick={() => deleteSource(source.id)}>
+                          Delete
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
