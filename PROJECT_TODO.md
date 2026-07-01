@@ -57,7 +57,15 @@ This documents every engineering change made in the 2026-06-30 work session.
 - Removed deprecated TypeScript `baseUrl` and `ignoreDeprecations` compiler options from `tsconfig.json`.
 - Build now passes with **zero warnings and zero errors**.
 
-### Files Changed
+### Hotfix — Search client crash + missing migration guard (2026-06-30)
+- `search-intelligence` was not including `topics` in the response; dashboard called `result.topics.length` on undefined → full-page client-side exception on every search
+- Added `topics: item.topics || []` to the search-intelligence response serialization
+- Added `(result.topics || [])` guard in dashboard renderer as a second safety net
+- Bootstrap `getOrCreateCompetitor` was querying `is_system` column before migration was applied, causing silent insert failures; removed the column from the SELECT and made `trySetSystemFlag` a fire-and-forget best-effort call
+
+---
+
+
 | File | Change |
 |---|---|
 | `lib/ai.ts` | Groq + local fallback for summaries and embeddings |

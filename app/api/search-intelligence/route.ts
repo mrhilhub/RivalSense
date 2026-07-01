@@ -423,6 +423,7 @@ export async function GET(req: NextRequest) {
         summary: item.summary,
         strategic_insight: item.strategic_insight,
         category: item.category,
+        topics: item.topics || [],
         company_name: item.company_name,
         observed_at: item.observed_at,
         confidence_score: item.confidence_score,

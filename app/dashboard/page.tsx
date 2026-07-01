@@ -601,9 +601,9 @@ export default function Dashboard() {
                     </p>
                   )}
 
-                  {result.topics.length > 0 && (
+                  {(result.topics || []).length > 0 && (
                     <p style={{ ...mutedStyle, marginBottom: 8 }}>
-                      Topics: {result.topics.join(', ')}
+                      Topics: {(result.topics || []).join(', ')}
                     </p>
                   )}
 
