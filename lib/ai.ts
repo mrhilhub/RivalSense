@@ -18,13 +18,40 @@ export function normalizeSummary(summary: string | null | undefined): string {
 }
 
 function buildLocalSummary(input: { url: string; diff: string }): SummaryResult {
+  const lines = input.diff
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('+') || line.startsWith('-'));
+
+  const additions = lines
+    .filter((line) => line.startsWith('+'))
+    .map((line) => line.slice(1).trim())
+    .filter((line) => line.length > 8)
+    .slice(0, 2);
+
+  const removals = lines
+    .filter((line) => line.startsWith('-'))
+    .map((line) => line.slice(1).trim())
+    .filter((line) => line.length > 8)
+    .slice(0, 2);
+
   const preview = input.diff.replace(/\s+/g, ' ').slice(0, 220).trim();
   const score = input.diff.length > 4000 ? 4 : input.diff.length > 1200 ? 3 : 2;
+  const changeDetails = [
+    additions.length > 0 ? `Added: ${additions.join(' | ')}` : '',
+    removals.length > 0 ? `Removed: ${removals.join(' | ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('. ');
+
+  const summary = changeDetails
+    ? `A tracked source changed at ${input.url}. ${changeDetails}.`
+    : preview
+      ? `Change detected at ${input.url}. Review the updated content for product, infrastructure, or pricing impact. Preview: ${preview}`
+      : `Change detected at ${input.url}. Review the updated content for product, infrastructure, or pricing impact.`;
 
   return {
-    summary: preview
-      ? `Change detected at ${input.url}. Review the updated content for product, infrastructure, or pricing impact. Preview: ${preview}`
-      : `Change detected at ${input.url}. Review the updated content for product, infrastructure, or pricing impact.`,
+    summary,
     importance_score: score,
   };
 }
