@@ -1,5 +1,6 @@
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseServer';
+import { normalizeSummary } from '@/lib/ai';
 import { generateEmbedding } from '@/lib/embeddings';
 
 export async function GET(req: NextRequest) {
@@ -16,8 +17,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const supabase = supabaseAdmin();
-
     // Get authenticated user from header
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
@@ -29,6 +28,15 @@ export async function GET(req: NextRequest) {
 
     // Extract token and verify with Supabase
     const token = authHeader.replace('Bearer ', '');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      {
+        auth: { persistSession: false },
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      }
+    );
+
     const {
       data: { user },
       error: authError,
@@ -107,10 +115,10 @@ export async function GET(req: NextRequest) {
       results: results.map((item: Record<string, unknown>) => ({
         id: item.id,
         title: item.title,
-        summary: item.summary,
-        strategic_insight: item.strategic_insight,
+        summary: normalizeSummary((item.summary as string | null | undefined) ?? null),
+        strategic_insight: normalizeSummary((item.strategic_insight as string | null | undefined) ?? null),
         category: item.category,
-        company_name: item.company_name || 'Unknown',
+        company_name: (item.company_name as string | null | undefined) || 'Unknown',
         observed_at: item.observed_at,
         confidence_score: item.confidence_score,
         source_url: item.source_url,

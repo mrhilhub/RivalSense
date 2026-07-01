@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeSummary } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 type SourceRow = {
@@ -68,6 +69,7 @@ export async function GET(req: NextRequest) {
       current_preview: snapshot?.raw_text
         ? previewText(snapshot.raw_text)
         : 'No snapshot captured yet. Run a check to create the first baseline.',
+      summary: normalizeSummary((source as { summary?: string | null }).summary || null),
     });
   }
 

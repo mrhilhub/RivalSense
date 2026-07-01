@@ -5,7 +5,7 @@
 - ✅ Maintain green Vercel deploy after every push
 - ✅ Keep messaging search-first and intelligence-first
 - ✅ Apply Track 2 migrations to Supabase
-- 🔄 Backfill embeddings for existing intelligence_items
+- ✅ Backfill embeddings for existing intelligence_items
 - ✅ Test end-to-end flow: Check → Embed → Store → Search
 - Future: Add deployment protection or access control to `/api/check` endpoint
 
@@ -168,7 +168,7 @@ Not:
 ---
 
 # Track 2: Intelligence Database Foundation
-**[DOING]** - Building solid intelligence database. Created migration files with embeddings, text search, and utility functions. Integrated OpenAI embeddings into /api/check. Added new search API endpoint.
+**[DOING]** - Building solid intelligence database. Created migration files with embeddings, text search, and utility functions. Integrated embedding generation into /api/check, added a search API endpoint, and verified the flow end to end.
 
 **Completed:**
 - ✅ Created migration 202606090002_intelligence_items_text_search.sql - Full-text search, review tracking, quality scoring
@@ -177,6 +177,10 @@ Not:
 - ✅ Updated /api/check to generate embeddings when creating intelligence_items
 - ✅ Added new fields: source_quality_score, is_reviewed, language, estimated_impact, affected_entities
 - ✅ Created /api/search-intelligence endpoint with semantic + text search fallback
+- ✅ Switched AI generation to a free-tier-friendly path: Groq when configured, deterministic local fallback otherwise
+- ✅ Fixed and verified backfill embeddings for existing intelligence_items against Supabase (2 items updated, 0 failures)
+- ✅ Fixed authenticated semantic search routing so the endpoint respects the logged-in user and returns live results
+- ✅ Verified build and live API behavior on 2026-06-30
 
 **Completed:**
 - ✅ Deploy migrations to Supabase production

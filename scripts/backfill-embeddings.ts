@@ -24,10 +24,27 @@ import { backfillIntelligenceEmbeddings } from '../lib/embeddings';
 
 async function main() {
   const args = process.argv.slice(2);
-  const limit = parseInt(args[args.indexOf('--limit') + 1] || '100', 10);
-  const batchSize = parseInt(args[args.indexOf('--batch-size') + 1] || '10', 10);
-  const dryRun = args.includes('--dry-run');
-  const userId = args[args.indexOf('--user-id') + 1];
+  let limit = 100;
+  let batchSize = 10;
+  let dryRun = false;
+  let userId: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === '--limit') {
+      limit = parseInt(args[index + 1] || '100', 10);
+      index += 1;
+    } else if (arg === '--batch-size') {
+      batchSize = parseInt(args[index + 1] || '10', 10);
+      index += 1;
+    } else if (arg === '--dry-run') {
+      dryRun = true;
+    } else if (arg === '--user-id') {
+      userId = args[index + 1];
+      index += 1;
+    }
+  }
 
   console.log('🚀 RivalSense Embedding Backfill');
   console.log('─'.repeat(50));

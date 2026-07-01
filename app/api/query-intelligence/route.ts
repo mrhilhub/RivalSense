@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeSummary } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 type IntelligenceSearchRow = {
@@ -122,8 +123,8 @@ export async function GET(req: NextRequest) {
   const results = ((data || []) as IntelligenceSearchRow[]).map((item) => ({
     id: item.id,
     title: item.title,
-    summary: item.summary,
-    strategic_insight: item.strategic_insight,
+    summary: normalizeSummary(item.summary),
+    strategic_insight: normalizeSummary(item.strategic_insight),
     category: item.category,
     topics: item.topics || [],
     source_url: item.source_url,

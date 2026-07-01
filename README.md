@@ -1,6 +1,6 @@
 # RivalSense Database Intelligence Platform
 
-A Vercel-ready MVP for monitoring database systems, vendors, internal platforms, and project sources. It stores snapshots, detects meaningful changes, summarizes database-relevant impact with OpenAI, and can send email alerts via Resend.
+A Vercel-ready MVP for monitoring database systems, vendors, internal platforms, and project sources. It stores snapshots, detects meaningful changes, summarizes database-relevant impact with a free-tier-friendly AI fallback, and can send email alerts via Resend.
 
 ## What it does
 
@@ -9,7 +9,7 @@ A Vercel-ready MVP for monitoring database systems, vendors, internal platforms,
 - URL crawler and boilerplate cleaner
 - Snapshot hashing
 - Text diffing
-- OpenAI summaries focused on schema, migration, reliability, performance, release, pricing, and operational impact
+- AI summaries focused on schema, migration, reliability, performance, release, pricing, and operational impact, using Groq when configured and a built-in fallback otherwise
 - Optional Resend email alerts
 - Vercel cron-compatible check endpoint
 

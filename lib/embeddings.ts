@@ -1,15 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import { generateEmbedding, generateEmbeddingBatch } from './ai';
 
-function getOpenAIClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured. Add it to your environment before running embedding generation.');
-  }
-
-  return new OpenAI({ apiKey });
-}
+export { generateEmbedding, generateEmbeddingBatch };
 
 export interface BackfillEmbeddingsOptions {
   limit?: number;
@@ -28,47 +20,6 @@ export interface BackfillEmbeddingsSummary {
   failures: Array<{ id: string; error: string }>;
 }
 
-export async function generateEmbedding(text: string): Promise<number[]> {
-  try {
-    const client = getOpenAIClient();
-    const response = await client.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: text,
-      encoding_format: 'float',
-    });
-
-    if (response.data && response.data.length > 0) {
-      return response.data[0].embedding;
-    }
-
-    throw new Error('No embedding returned from OpenAI');
-  } catch (error) {
-    console.error('Failed to generate embedding:', error);
-    throw error;
-  }
-}
-
-export async function generateEmbeddingBatch(texts: string[]): Promise<number[][]> {
-  try {
-    const client = getOpenAIClient();
-    const response = await client.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: texts,
-      encoding_format: 'float',
-    });
-
-    if (response.data) {
-      // Sort by index to ensure correct order
-      const sorted = response.data.sort((a, b) => a.index - b.index);
-      return sorted.map((item) => item.embedding);
-    }
-
-    throw new Error('No embeddings returned from OpenAI');
-  } catch (error) {
-    console.error('Failed to generate embeddings batch:', error);
-    throw error;
-  }
-}
 
 export function buildIntelligenceEmbeddingText(
   title: string,
