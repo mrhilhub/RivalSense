@@ -4,9 +4,9 @@
 - ✅ Maintain green local `npm run build` before every push
 - ✅ Maintain green Vercel deploy after every push
 - ✅ Keep messaging search-first and intelligence-first
-- **[URGENT]** Apply Track 2 migrations to Supabase
-- **[URGENT]** Backfill embeddings for existing intelligence_items
-- **[URGENT]** Test end-to-end flow: Check → Embed → Store → Search
+- ✅ Apply Track 2 migrations to Supabase
+- 🔄 Backfill embeddings for existing intelligence_items
+- ✅ Test end-to-end flow: Check → Embed → Store → Search
 - Future: Add deployment protection or access control to `/api/check` endpoint
 
 **ACTION ITEMS FOR DA BOSS:**
@@ -178,16 +178,20 @@ Not:
 - ✅ Added new fields: source_quality_score, is_reviewed, language, estimated_impact, affected_entities
 - ✅ Created /api/search-intelligence endpoint with semantic + text search fallback
 
-**In Progress:**
-- 🔄 Deploy migrations to Supabase production
-- 🔄 Verify intelligence_items table has all new columns
-- 🔄 Test end-to-end embedding generation and retrieval
+**Completed:**
+- ✅ Deploy migrations to Supabase production
+- ✅ Verify intelligence_items table has all new columns
+- ✅ Test end-to-end embedding generation and retrieval
 
-**TODO:**
-- Entity extraction pipeline (extract companies, people, topics from summaries)
+**In Progress:**
+- 🔄 Backfill embeddings for existing intelligence_items
+- 🔄 Create admin API for backfilling missing embeddings
+
+**Next Steps:**
 - Add confidence scoring refinement
-- Batch embeddings generation for backfill
-- Create admin API for backfilling missing embeddings
+- Build entity extraction pipeline for companies, people, and topics
+- Validate backfilled embeddings support semantic search results
+- Harden `/api/check` protection and deployment safety
 
 **Database Schema Added:**
 - `intelligence_items.full_text_search` - Generated tsvector for FTS

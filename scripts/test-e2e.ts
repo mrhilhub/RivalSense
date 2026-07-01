@@ -62,39 +62,24 @@ async function testDatabaseSchema(supabase: any) {
 
   try {
     // Check if intelligence_items table exists
-    const { data: columns, error: colError } = await supabase
-      .rpc('information_schema.columns', {
-        table_name: 'intelligence_items',
-      })
-      .catch(() => ({ data: null, error: true }));
+    const { error: tableError } = await supabase
+      .from('intelligence_items')
+      .select('id')
+      .limit(1);
 
-    if (colError) {
-      // Try direct query
-      const { data, error } = await supabase
-        .from('intelligence_items')
-        .select('count()', { count: 'exact', head: true })
-        .limit(0);
-
-      if (!error) {
-        results.push({
-          name: 'intelligence_items table exists',
-          status: 'pass',
-          message: 'Table exists and is accessible',
-        });
-      } else {
-        results.push({
-          name: 'intelligence_items table exists',
-          status: 'fail',
-          message: `Table check failed: ${error.message}`,
-        });
-        return;
-      }
-    } else {
+    if (!tableError) {
       results.push({
         name: 'intelligence_items table exists',
         status: 'pass',
-        message: 'Table verified via schema query',
+        message: 'Table exists and is accessible',
       });
+    } else {
+      results.push({
+        name: 'intelligence_items table exists',
+        status: 'fail',
+        message: `Table check failed: ${tableError.message}`,
+      });
+      return;
     }
 
     // Check for required columns
@@ -108,52 +93,27 @@ async function testDatabaseSchema(supabase: any) {
       'company_name',
     ];
 
-    const { data: sample } = await supabase
+    const selectColumns = requiredColumns.join(',');
+    const { error: selectError } = await supabase
       .from('intelligence_items')
-      .select('*')
+      .select(selectColumns)
       .limit(1);
 
-    if (sample && sample.length > 0) {
-      const item = sample[0];
-      const missingColumns = requiredColumns.filter((col) => !(col in item));
-
-      if (missingColumns.length === 0) {
-        results.push({
-          name: 'Required columns exist',
-          status: 'pass',
-          message: `All ${requiredColumns.length} required columns found`,
-        });
-      } else {
-        results.push({
-          name: 'Required columns exist',
-          status: 'fail',
-          message: `Missing columns: ${missingColumns.join(', ')}`,
-        });
-      }
+    if (!selectError) {
+      results.push({
+        name: 'Required columns exist',
+        status: 'pass',
+        message: `All ${requiredColumns.length} required columns found`,
+      });
     } else {
       results.push({
         name: 'Required columns exist',
-        status: 'skip',
-        message: 'No data to validate column structure',
+        status: 'fail',
+        message: `Missing or inaccessible columns: ${selectError.message}`,
       });
     }
 
     // Check for functions
-    const { data: functions } = await supabase.rpc('get_functions_list').catch(() => ({
-      data: [],
-    }));
-
-    const requiredFunctions = [
-      'search_intelligence_items',
-      'search_intelligence_by_text',
-      'get_intelligence_by_company',
-    ];
-
-    results.push({
-      name: 'Search functions exist',
-      status: functions?.length > 0 ? 'pass' : 'skip',
-      message: `Found ${functions?.length || 0} functions`,
-    });
   } catch (error) {
     results.push({
       name: 'Database schema validation',
@@ -251,31 +211,31 @@ async function testSearch(supabase: any) {
 
   try {
     // Test text search function exists
-    const { data: textSearchResult, error: textError } = await supabase
-      .rpc('search_intelligence_by_text', {
+    try {
+      const { error: textError } = await supabase.rpc('search_intelligence_by_text', {
         p_user_id: '00000000-0000-0000-0000-000000000000',
         p_query: 'test',
         p_limit: 5,
-      })
-      .catch((e: any) => ({ data: null, error: e }));
+      });
 
-    if (textError && !textError.message?.includes('function')) {
-      results.push({
-        name: 'Text search function',
-        status: 'pass',
-        message: 'Function exists (query returned expected result)',
-      });
-    } else if (!textError) {
-      results.push({
-        name: 'Text search function',
-        status: 'pass',
-        message: 'Text search executed successfully',
-      });
-    } else {
+      if (textError) {
+        results.push({
+          name: 'Text search function',
+          status: 'fail',
+          message: `Function error: ${textError.message}`,
+        });
+      } else {
+        results.push({
+          name: 'Text search function',
+          status: 'pass',
+          message: 'Text search function executed successfully',
+        });
+      }
+    } catch (e: any) {
       results.push({
         name: 'Text search function',
         status: 'fail',
-        message: `Function error: ${textError.message}`,
+        message: `RPC call failed: ${e.message || String(e)}`,
       });
     }
 
