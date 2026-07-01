@@ -91,6 +91,28 @@ This documents every engineering change made in the 2026-06-30 work session.
 
 ---
 
+## Next Session — Where to Start
+
+### Immediate operational steps (do these first)
+1. **Verify Vercel deployed the latest commit** (`d5a033e5`) — check the Vercel dashboard for tsp.today@gmail.com's project.
+2. **Log in as tsp.today@gmail.com** on the live app and click **"Run defaults now"** in the dashboard nav. This seeds all 11 AI companies, their sources, and 33 historic intelligence items into the DB.
+3. **Run a search** like "Show pricing changes from the last month" — should now return real results instead of an error.
+4. **Check the "Default-company cron" metric card** — should show a real timestamp after step 2.
+
+### Known remaining gaps
+- **Embeddings on historic seed items** — the 33 seeded intelligence items don't have vector embeddings yet, so semantic search won't surface them; only text search will. Fix: run `npx ts-node scripts/backfill-embeddings.ts --user-id <uuid>` after seeding, or wire the backfill into the bootstrap flow.
+- **Search answer quality** — results are showing raw summaries from the live-scrape fallback. Better quality comes once the daily cron has run a few times and built up real intelligence items with properly generated summaries.
+- **No AI-generated strategic answer** — search returns a list of items but no synthesized answer. Next big product move is generating a brief paragraph answer above the results list using the top items as context.
+- **query-intelligence route still exists** — it's no longer used by the dashboard but the endpoint is still live. Can be removed or repurposed.
+
+### Next product features (priority order)
+1. **Synthesized search answers** — take top 3–5 search results and generate a 2–3 sentence strategic answer at the top of the results (major product differentiator).
+2. **Embed historic seeds on bootstrap** — call `generateIntelligenceEmbedding` for each seed item during `bootstrapAiUniverseForUser` so semantic search works immediately.
+3. **Company intelligence profiles** — a `/dashboard/company/[name]` page showing timeline, recent changes, pricing history, and source status for a single company.
+4. **Email digest** — weekly summary of the most important changes across all tracked companies, sent to the user's email.
+
+---
+
 ## Current Priorities
 - ✅ Maintain green local `npm run build` before every push
 - ✅ Maintain green Vercel deploy after every push
