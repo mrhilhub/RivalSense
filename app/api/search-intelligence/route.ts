@@ -5,6 +5,7 @@ import { makeDiffExcerpt } from '@/lib/diff';
 import { normalizeSummary, summarizeChange } from '@/lib/ai';
 import { generateEmbedding } from '@/lib/embeddings';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { defaultAiCompanies } from '@/lib/aiCompanyUniverse';
 
 type IntelligenceSearchRow = {
   id: string;
@@ -207,22 +208,45 @@ async function liveSearchFallback(
   query: string,
   limit: number
 ): Promise<SearchResult[]> {
-  const { data: sources, error } = await admin
+  const { data: dbSources } = await admin
     .from('monitored_sources')
     .select('id,url,type,competitor_id,competitors(name)')
     .eq('user_id', userId)
     .eq('active', true);
 
-  if (error || !sources || sources.length === 0) {
-    return [];
+  // Build candidate list: prefer DB sources, fall back to static universe
+  let candidates: Array<{ source: MonitoredSourceRow; score: number }>;
+
+  if (dbSources && dbSources.length > 0) {
+    candidates = (dbSources as MonitoredSourceRow[])
+      .map((source) => ({ source, score: rankSource(query, source) }))
+      .sort((left, right) => right.score - left.score);
+  } else {
+    // No sources in DB yet — scrape from the static AI-company universe
+    const terms = queryTerms(query);
+    const staticSources: MonitoredSourceRow[] = defaultAiCompanies.flatMap((company) =>
+      company.sources.map((s) => ({
+        id: `static:${company.name}:${s.url}`,
+        url: s.url,
+        type: s.type,
+        competitor_id: null,
+        competitors: { name: company.name },
+      }))
+    );
+
+    candidates = staticSources
+      .map((source) => ({ source, score: rankSource(query, source) }))
+      .filter(({ score }) => score > 0)
+      .sort((left, right) => right.score - left.score);
+
+    // If nothing matches, use pricing/release/changelog sources as a general fallback
+    if (candidates.length === 0) {
+      candidates = staticSources
+        .filter((s) => ['pricing', 'release', 'changelog'].includes(s.type))
+        .map((source) => ({ source, score: terms.length }));
+    }
   }
 
-  const ranked = (sources as MonitoredSourceRow[])
-    .map((source) => ({ source, score: rankSource(query, source) }))
-    .filter(({ score }) => score > 0)
-    .sort((left, right) => right.score - left.score);
-
-  const candidates = ranked.length > 0 ? ranked : (sources as MonitoredSourceRow[]).map((source) => ({ source, score: 0 }));
   const results: SearchResult[] = [];
 
   for (const { source } of candidates.slice(0, Math.max(1, Math.min(3, limit)))) {

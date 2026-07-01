@@ -16,6 +16,17 @@ function observedAtFromDaysAgo(daysAgo: number) {
   return date.toISOString();
 }
 
+// is_system requires migration 202606300001_system_ai_universe.sql.
+// We set it best-effort so bootstrap works even before the migration is applied.
+async function trySetSystemFlag(
+  supabase: SupabaseClient,
+  table: string,
+  id: string
+) {
+  await supabase.from(table).update({ is_system: true }).eq('id', id);
+  // Ignore errors — column may not exist yet in production.
+}
+
 async function getOrCreateCompetitor(
   supabase: SupabaseClient,
   userId: string,
@@ -25,7 +36,7 @@ async function getOrCreateCompetitor(
 ) {
   const { data: existing, error: lookupError } = await supabase
     .from('competitors')
-    .select('id,name,website,is_system')
+    .select('id,name,website')
     .eq('user_id', userId)
     .or(`name.eq.${name},website.eq.${website}`)
     .maybeSingle();
@@ -39,17 +50,12 @@ async function getOrCreateCompetitor(
       return existing.id as string;
     }
 
-    const { error: updateError } = await supabase
+    await supabase
       .from('competitors')
-      .update({
-        website,
-        is_system: true,
-      })
+      .update({ website })
       .eq('id', existing.id);
 
-    if (updateError) {
-      throw updateError;
-    }
+    await trySetSystemFlag(supabase, 'competitors', existing.id);
 
     return existing.id as string;
   }
@@ -64,7 +70,6 @@ async function getOrCreateCompetitor(
       user_id: userId,
       name,
       website,
-      is_system: true,
     })
     .select('id')
     .single();
@@ -72,6 +77,8 @@ async function getOrCreateCompetitor(
   if (error) {
     throw error;
   }
+
+  await trySetSystemFlag(supabase, 'competitors', data.id);
 
   return data.id as string;
 }
@@ -160,18 +167,25 @@ export async function bootstrapAiUniverseForUser(
         continue;
       }
 
-      const { error } = await supabase.from('monitored_sources').insert({
-        user_id: userId,
-        competitor_id: competitorId,
-        type: source.type,
-        url,
-        active: true,
-        last_status: 'not_checked',
-        is_system: true,
-      });
+      const { error, data: inserted } = await supabase
+        .from('monitored_sources')
+        .insert({
+          user_id: userId,
+          competitor_id: competitorId,
+          type: source.type,
+          url,
+          active: true,
+          last_status: 'not_checked',
+        })
+        .select('id')
+        .single();
 
       if (error) {
         throw error;
+      }
+
+      if (inserted?.id) {
+        await trySetSystemFlag(supabase, 'monitored_sources', inserted.id);
       }
 
       createdSources += 1;

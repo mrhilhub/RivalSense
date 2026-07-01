@@ -78,6 +78,7 @@ type QueryResult = {
   observed_at: string;
   confidence_score?: number | null;
   company?: string | null;
+  company_name?: string | null;
 };
 
 const querySuggestions = [
@@ -166,6 +167,7 @@ export default function Dashboard() {
   const [competitorCount, setCompetitorCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [runningDefaults, setRunningDefaults] = useState(false);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [query, setQuery] = useState('');
   const [queryFocused, setQueryFocused] = useState(false);
@@ -294,6 +296,19 @@ export default function Dashboard() {
     setChecking(false);
   }
 
+  async function runDefaultChecks() {
+    setRunningDefaults(true);
+
+    try {
+      await fetch('/api/check-default-companies');
+      await load();
+    } catch {
+      // best effort
+    }
+
+    setRunningDefaults(false);
+  }
+
   async function askIntelligenceDatabase(searchQuery = query) {
     const cleanQuery = searchQuery.trim();
 
@@ -313,7 +328,7 @@ export default function Dashboard() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const res = await fetch(`/api/query-intelligence?${params.toString()}`, {
+      const res = await fetch(`/api/search-intelligence?${params.toString()}`, {
         headers: session?.access_token
           ? { authorization: `Bearer ${session.access_token}` }
           : {},
@@ -362,6 +377,9 @@ export default function Dashboard() {
             <Link className="btn" href="/dashboard/sources">
               Manage sources
             </Link>
+            <button className="btn" onClick={runDefaultChecks} disabled={runningDefaults}>
+              {runningDefaults ? 'Running...' : 'Run defaults now'}
+            </button>
             <button className="btn" onClick={runCheckNow} disabled={checking}>
               {checking ? 'Checking...' : 'Run check'}
             </button>
@@ -561,9 +579,9 @@ export default function Dashboard() {
                     <span style={statusBadgeStyle('baseline_created')}>
                       {result.category}
                     </span>
-                    {result.company && (
+                    {(result.company || result.company_name) && (
                       <span style={statusBadgeStyle('not_checked')}>
-                        {result.company}
+                        {result.company || result.company_name}
                       </span>
                     )}
                   </div>
