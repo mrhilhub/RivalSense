@@ -73,6 +73,15 @@ function canonicalUrl(input: string) {
   }
 }
 
+function normalizeMonitoredSourceType(type: string) {
+  // Backward compatibility: some deployed DBs still reject `release` in monitored_sources.type.
+  if (type === 'release') {
+    return 'changelog';
+  }
+
+  return type;
+}
+
 function discoveryHeaders() {
   const token = process.env.GITHUB_TOKEN;
   return {
@@ -467,13 +476,14 @@ async function promoteCandidateToCompetitor(
 
   for (const result of sources.filter((source) => source.health === 'healthy')) {
     const url = result.resolvedUrl || result.source.url;
+    const monitoredSourceType = normalizeMonitoredSourceType(result.source.type);
 
     const { data: existingSource } = await supabase
       .from('monitored_sources')
       .select('id')
       .eq('user_id', ownerUserId)
       .eq('competitor_id', competitorId)
-      .eq('type', result.source.type)
+      .eq('type', monitoredSourceType)
       .eq('url', url)
       .maybeSingle();
 
@@ -496,7 +506,7 @@ async function promoteCandidateToCompetitor(
       .insert({
         user_id: ownerUserId,
         competitor_id: competitorId,
-        type: result.source.type,
+        type: monitoredSourceType,
         url,
         active: true,
         last_status: 'not_checked',
