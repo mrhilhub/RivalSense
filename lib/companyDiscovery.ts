@@ -79,6 +79,11 @@ function normalizeMonitoredSourceType(type: string) {
     return 'changelog';
   }
 
+  // Backward compatibility: some environments also reject `incident`.
+  if (type === 'incident') {
+    return 'website';
+  }
+
   return type;
 }
 
