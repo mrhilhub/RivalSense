@@ -43,8 +43,8 @@ export type CompanyDiscoverySummary = {
 
 const GITHUB_API = 'https://api.github.com';
 const DEFAULT_DISCOVERY_LIMIT = 12;
-const DEFAULT_PROMOTION_THRESHOLD = 0.72;
-const MIN_HEALTHY_SOURCES_FOR_PROMOTION = 4;
+const DEFAULT_PROMOTION_THRESHOLD = 0.65;
+const MIN_HEALTHY_SOURCES_FOR_PROMOTION = 3;
 
 function normalizeDomain(input: string) {
   const value = input.trim().toLowerCase();
@@ -507,7 +507,12 @@ function shouldPromoteCandidate(confidence: number, healthySourceCount: number, 
       .map((source) => source.source.type)
   );
 
-  return healthyTypes.has('docs') && (healthyTypes.has('release') || healthyTypes.has('changelog'));
+  const hasKnowledgeSurface =
+    healthyTypes.has('docs') || healthyTypes.has('website') || healthyTypes.has('github');
+  const hasMarketSignal =
+    healthyTypes.has('release') || healthyTypes.has('changelog') || healthyTypes.has('pricing');
+
+  return hasKnowledgeSurface && hasMarketSignal;
 }
 
 export async function runCompanyDiscoveryForUser(
