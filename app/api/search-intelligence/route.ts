@@ -140,6 +140,64 @@ function normalizeInsight(summary: string, strategicInsight?: string | null) {
     : normalizeSummary(strategicInsight);
 }
 
+function isBroadQuery(query: string) {
+  return /^(which|what|show|list|compare|find|where|who)\b/i.test(query.trim()) || /\b(all|recent|recently|latest|across)\b/i.test(query.toLowerCase());
+}
+
+function mergeResults(primary: IntelligenceSearchRow[], secondary: IntelligenceSearchRow[]) {
+  const seen = new Set(primary.map((item) => item.id));
+  const merged = [...primary];
+
+  for (const item of secondary) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+
+    seen.add(item.id);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
+function diversifyResults(results: SearchResult[]) {
+  const byCompany = new Map<string, SearchResult[]>();
+
+  for (const result of results) {
+    const company = result.company_name || 'Unknown';
+    const bucket = byCompany.get(company) || [];
+    bucket.push(result);
+    byCompany.set(company, bucket);
+  }
+
+  const orderedCompanies = Array.from(byCompany.entries()).sort((left, right) => {
+    const leftScore = left[1][0]?.similarity ?? 0;
+    const rightScore = right[1][0]?.similarity ?? 0;
+    return rightScore - leftScore || left[0].localeCompare(right[0]);
+  });
+
+  const diversified: SearchResult[] = [];
+  const maxPerCompany = 2;
+
+  for (let round = 0; round < maxPerCompany; round += 1) {
+    for (const [, bucket] of orderedCompanies) {
+      if (bucket[round]) {
+        diversified.push(bucket[round]);
+      }
+    }
+  }
+
+  const seen = new Set(diversified.map((item) => item.id));
+  for (const result of results) {
+    if (!seen.has(result.id)) {
+      diversified.push(result);
+      seen.add(result.id);
+    }
+  }
+
+  return diversified;
+}
+
 function rankSource(query: string, source: MonitoredSourceRow) {
   const sourceText = `${source.url} ${source.type} ${companyName(source.competitors)}`.toLowerCase();
   return queryTerms(query).reduce((score, term) => score + (sourceText.includes(term) ? 1 : 0), 0);
@@ -440,6 +498,7 @@ export async function GET(req: NextRequest) {
     }
 
     let results: IntelligenceSearchRow[] = [];
+    const broadQuery = isBroadQuery(query);
 
     if (useTextSearch) {
       const { data, error } = await supabase.rpc('search_intelligence_by_text', {
@@ -473,6 +532,16 @@ export async function GET(req: NextRequest) {
         } else {
           results = (data || []) as IntelligenceSearchRow[];
         }
+
+        if (broadQuery) {
+          const { data: textData } = await supabase.rpc('search_intelligence_by_text', {
+            p_user_id: user.id,
+            p_query: query,
+            p_limit: Math.max(matchCount, 30),
+          });
+
+          results = mergeResults(results, (textData || []) as IntelligenceSearchRow[]);
+        }
       } catch (embedError) {
         console.error('Embedding generation failed, falling back to text search:', embedError);
         const { data: textData } = await supabase.rpc('search_intelligence_by_text', {
@@ -499,6 +568,10 @@ export async function GET(req: NextRequest) {
       company_name: companyName(item.competitors),
       similarity: item.similarity || null,
     }));
+
+    if (broadQuery) {
+      finalResults = diversifyResults(finalResults);
+    }
 
     const needsRefresh = finalResults.some((item) => isGenericSummary(item.summary) || isGenericSummary(item.strategic_insight));
 

@@ -127,32 +127,28 @@ async function callGroqSummary(input: { url: string; diff: string }): Promise<Su
   return null;
 }
 
-function buildLocalSearchAnswer(input: {
-  query: string;
-  results: SearchAnswerEvidence[];
-}): string {
-  const intent = inferSearchIntent(input.query);
-  const selectedEvidence = selectEvidenceForAnswer(input.query, input.results);
-  const companies = Array.from(
-    new Set(selectedEvidence.map((item) => item.company).filter((name) => name && name !== 'Unknown'))
-  );
+function buildCompanyRollup(results: SearchAnswerEvidence[]) {
+  const counts = new Map<string, number>();
 
-  const claims = selectedEvidence
-    .map((item) => extractClaim(item))
-    .filter(Boolean) as string[];
+  for (const result of results) {
+    const company = result.company && result.company !== 'Unknown' ? result.company : 'Unknown';
+    counts.set(company, (counts.get(company) || 0) + 1);
+  }
 
-  const lead = buildLeadSentence(input.query, intent, companies, claims.length || input.results.length);
-  const evidenceSentence = buildEvidenceSentence(claims);
-  const scopeSentence =
-    input.results.length > selectedEvidence.length
-      ? `This answer is based on the strongest ${selectedEvidence.length} signals, with more supporting evidence listed below.`
-      : 'This answer is based on the strongest available evidence in the results below.';
+  return Array.from(counts.entries())
+    .filter(([company]) => company !== 'Unknown')
+    .map(([company, count]) => ({ company, count }))
+    .sort((left, right) => right.count - left.count || left.company.localeCompare(right.company));
+}
 
-  return [lead, evidenceSentence, scopeSentence]
-    .filter(Boolean)
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function formatCompanyRollup(companies: Array<{ company: string; count: number }>, limit = 5) {
+  const slice = companies.slice(0, limit);
+
+  if (slice.length === 0) {
+    return '';
+  }
+
+  return slice.map((entry) => `${entry.company} (${entry.count})`).join(', ');
 }
 
 function inferSearchIntent(query: string): SearchIntent {
@@ -252,22 +248,40 @@ function buildLeadSentence(
   query: string,
   intent: SearchIntent,
   companies: string[],
-  resultCount: number
+  resultCount: number,
+  companyRollup: Array<{ company: string; count: number }>,
+  totalResults: number
 ) {
   const companyList = companies.length > 0 ? companies.join(', ') : 'the tracked companies';
+  const rollupLabel = formatCompanyRollup(companyRollup);
+  const hasMultipleCompanies = companyRollup.length > 1;
 
   switch (intent) {
     case 'pricing':
-      return `On pricing, the strongest current signals come from ${companyList}.`;
+      return hasMultipleCompanies
+        ? `I found ${totalResults} pricing-related updates across ${companyRollup.length} companies: ${rollupLabel}.`
+        : `On pricing, the strongest current signals come from ${companyList}.`;
     case 'incident':
-      return `On reliability and incident risk, the clearest current signals come from ${companyList}.`;
+      return hasMultipleCompanies
+        ? `I found ${totalResults} reliability or incident updates across ${companyRollup.length} companies: ${rollupLabel}.`
+        : `On reliability and incident risk, the clearest current signals come from ${companyList}.`;
     case 'release':
-      return `On launches and releases, the strongest current signals come from ${companyList}.`;
+      return hasMultipleCompanies
+        ? `I found ${totalResults} launch or release updates across ${companyRollup.length} companies: ${rollupLabel}.`
+        : `On launches and releases, the strongest current signals come from ${companyList}.`;
     case 'docs':
-      return `On documentation and API changes, the clearest current signals come from ${companyList}.`;
+      return hasMultipleCompanies
+        ? `I found ${totalResults} documentation or API updates across ${companyRollup.length} companies: ${rollupLabel}.`
+        : `On documentation and API changes, the clearest current signals come from ${companyList}.`;
     case 'github':
-      return `On SDK and repository activity, the clearest current signals come from ${companyList}.`;
+      return hasMultipleCompanies
+        ? `I found ${totalResults} GitHub or SDK updates across ${companyRollup.length} companies: ${rollupLabel}.`
+        : `On SDK and repository activity, the clearest current signals come from ${companyList}.`;
     default:
+      if (hasMultipleCompanies) {
+        return `I found ${totalResults} relevant updates across ${companyRollup.length} companies: ${rollupLabel}.`;
+      }
+
       return companies.length > 0
         ? `For "${query}", the strongest current signals come from ${companyList}.`
         : `For "${query}", RivalSense found ${resultCount} relevant intelligence signals.`;
@@ -288,6 +302,40 @@ function buildEvidenceSentence(claims: string[]) {
   return pieces.join(' ');
 }
 
+function buildLocalSearchAnswer(input: {
+  query: string;
+  results: SearchAnswerEvidence[];
+}): string {
+  const intent = inferSearchIntent(input.query);
+  const selectedEvidence = selectEvidenceForAnswer(input.query, input.results);
+  const companyRollup = buildCompanyRollup(input.results);
+  const companies = companyRollup.map((entry) => entry.company);
+
+  const claims = selectedEvidence
+    .map((item) => extractClaim(item))
+    .filter(Boolean) as string[];
+
+  const lead = buildLeadSentence(
+    input.query,
+    intent,
+    companies,
+    claims.length || input.results.length,
+    companyRollup,
+    input.results.length
+  );
+  const evidenceSentence = buildEvidenceSentence(claims);
+  const scopeSentence =
+    input.results.length > selectedEvidence.length
+      ? `This answer is based on the strongest ${selectedEvidence.length} signals, with more supporting evidence listed below.`
+      : 'This answer is based on the strongest available evidence in the results below.';
+
+  return [lead, evidenceSentence, scopeSentence]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function callGroqSearchAnswer(input: {
   query: string;
   results: SearchAnswerEvidence[];
@@ -298,6 +346,9 @@ async function callGroqSearchAnswer(input: {
   }
 
   try {
+    const companyRollup = buildCompanyRollup(input.results);
+    const evidence = selectEvidenceForAnswer(input.query, input.results).slice(0, 6);
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -311,13 +362,14 @@ async function callGroqSearchAnswer(input: {
           {
             role: 'system',
             content:
-              'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
+              'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
           },
           {
             role: 'user',
             content: JSON.stringify({
               query: input.query,
-              evidence: input.results.slice(0, 5).map((item) => ({
+              company_rollup: companyRollup,
+              evidence: evidence.map((item) => ({
                 company: item.company,
                 title: item.title,
                 category: item.category,
@@ -326,7 +378,7 @@ async function callGroqSearchAnswer(input: {
                 strategic_insight: item.strategic_insight,
               })),
               instruction:
-                'Answer the query directly using only this evidence. Prioritize the most recent and relevant signals, collapse duplicates, mention the most important companies or themes, and make the answer feel like one polished analyst response rather than stitched snippets.',
+                'Answer the query directly using only this evidence. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Do not collapse the response into a single company unless the evidence truly only supports one company. Prioritize the most recent and relevant signals, collapse duplicates, and make the answer feel like one polished analyst response rather than stitched snippets.',
             }),
           },
         ],
