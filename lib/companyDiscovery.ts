@@ -31,6 +31,13 @@ type SourceProbeResult = {
   resolvedUrl?: string;
 };
 
+type ErrorLike = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
 export type CompanyDiscoverySummary = {
   ownerUserId: string;
   discovered: number;
@@ -391,7 +398,25 @@ async function upsertSourceCandidates(
 
 async function trySetSystemFlag(table: 'competitors' | 'monitored_sources', id: string) {
   const supabase = supabaseAdmin();
+  // Best-effort only. Some environments may not yet have is_system columns.
   await supabase.from(table).update({ is_system: true }).eq('id', id);
+}
+
+function formatDiscoveryError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const value = error as ErrorLike;
+    const parts = [value.message, value.details, value.hint, value.code].filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(' | ');
+    }
+  }
+
+  return String(error);
 }
 
 async function promoteCandidateToCompetitor(
@@ -434,7 +459,11 @@ async function promoteCandidateToCompetitor(
       .eq('id', competitorId);
   }
 
-  await trySetSystemFlag('competitors', competitorId);
+  try {
+    await trySetSystemFlag('competitors', competitorId);
+  } catch {
+    // Ignore best-effort system flag failures.
+  }
 
   for (const result of sources.filter((source) => source.health === 'healthy')) {
     const url = result.resolvedUrl || result.source.url;
@@ -454,7 +483,11 @@ async function promoteCandidateToCompetitor(
         .update({ active: true })
         .eq('id', existingSource.id);
 
-      await trySetSystemFlag('monitored_sources', existingSource.id);
+      try {
+        await trySetSystemFlag('monitored_sources', existingSource.id);
+      } catch {
+        // Ignore best-effort system flag failures.
+      }
       continue;
     }
 
@@ -475,7 +508,11 @@ async function promoteCandidateToCompetitor(
       throw sourceInsertError;
     }
 
-    await trySetSystemFlag('monitored_sources', createdSource.id);
+    try {
+      await trySetSystemFlag('monitored_sources', createdSource.id);
+    } catch {
+      // Ignore best-effort system flag failures.
+    }
   }
 
   const { error: updateCandidateError } = await supabase
@@ -560,7 +597,7 @@ export async function runCompanyDiscoveryForUser(
         promotedCompanies += 1;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatDiscoveryError(error);
       errors.push(`${company.name}: ${message}`);
     }
   }
