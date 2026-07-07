@@ -32,7 +32,7 @@ export const defaultAiCompanies: SeedCompany[] = [
       },
       {
         type: 'pricing',
-        url: 'https://developers.openai.com/api/pricing',
+        url: 'https://developers.openai.com/api/docs/pricing',
         legacyUrls: ['https://openai.com/pricing'],
       },
       {

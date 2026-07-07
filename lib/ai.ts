@@ -12,6 +12,8 @@ export interface SearchAnswerEvidence {
   observed_at: string;
 }
 
+type SearchIntent = 'pricing' | 'release' | 'incident' | 'docs' | 'github' | 'general';
+
 export function normalizeSummary(summary: string | null | undefined): string {
   const cleaned = (summary || '').trim();
   if (!cleaned) {
@@ -129,26 +131,161 @@ function buildLocalSearchAnswer(input: {
   query: string;
   results: SearchAnswerEvidence[];
 }): string {
-  const topResults = input.results.slice(0, 3);
+  const intent = inferSearchIntent(input.query);
+  const selectedEvidence = selectEvidenceForAnswer(input.query, input.results);
   const companies = Array.from(
-    new Set(topResults.map((item) => item.company).filter((name) => name && name !== 'Unknown'))
+    new Set(selectedEvidence.map((item) => item.company).filter((name) => name && name !== 'Unknown'))
   );
 
-  const evidence = topResults
-    .map((item) => item.strategic_insight || item.summary)
-    .map((text) => normalizeSummary(text).replace(/\s+/g, ' ').trim())
-    .filter(Boolean);
+  const claims = selectedEvidence
+    .map((item) => extractClaim(item))
+    .filter(Boolean) as string[];
 
-  const uniqueEvidence = Array.from(new Set(evidence));
-  const opener = companies.length > 0
-    ? `For "${input.query}", the clearest signals are coming from ${companies.join(', ')}.`
-    : `For "${input.query}", RivalSense found ${input.results.length} relevant intelligence signals.`;
-  const body = uniqueEvidence.slice(0, 2).join(' ');
-  const closer = input.results.length > 3
-    ? `There are ${input.results.length - 3} additional supporting items below.`
-    : 'The evidence below supports this brief.';
+  const lead = buildLeadSentence(input.query, intent, companies, claims.length || input.results.length);
+  const evidenceSentence = buildEvidenceSentence(claims);
+  const scopeSentence =
+    input.results.length > selectedEvidence.length
+      ? `This answer is based on the strongest ${selectedEvidence.length} signals, with more supporting evidence listed below.`
+      : 'This answer is based on the strongest available evidence in the results below.';
 
-  return [opener, body, closer].filter(Boolean).join(' ');
+  return [lead, evidenceSentence, scopeSentence]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function inferSearchIntent(query: string): SearchIntent {
+  const normalized = query.toLowerCase();
+
+  if (/price|pricing|cost|plan|billing/.test(normalized)) return 'pricing';
+  if (/incident|outage|downtime|reliability|status/.test(normalized)) return 'incident';
+  if (/launch|release|ship|announce|announcement|news/.test(normalized)) return 'release';
+  if (/docs|documentation|api|schema|migration/.test(normalized)) return 'docs';
+  if (/github|repo|sdk|package|library/.test(normalized)) return 'github';
+  return 'general';
+}
+
+function categoryMatchesIntent(category: string, intent: SearchIntent) {
+  if (intent === 'general') {
+    return false;
+  }
+
+  if (intent === 'release') {
+    return ['release', 'changelog', 'website'].includes(category);
+  }
+
+  if (intent === 'docs') {
+    return ['docs', 'changelog'].includes(category);
+  }
+
+  return category === intent;
+}
+
+function extractClaim(item: SearchAnswerEvidence) {
+  const raw = normalizeSummary(item.strategic_insight || item.summary)
+    .replace(/A tracked source changed at https?:\/\/\S+\.\s*/gi, '')
+    .replace(/Change detected at https?:\/\/\S+\.\s*/gi, '')
+    .replace(/Review the updated content for[^.]*\.?/gi, '')
+    .replace(/Review the latest content for[^.]*\.?/gi, '')
+    .replace(/Preview:\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!raw) {
+    return '';
+  }
+
+  const capitalized = raw.charAt(0).toUpperCase() + raw.slice(1);
+  return capitalized.endsWith('.') ? capitalized : `${capitalized}.`;
+}
+
+function evidenceScore(query: string, item: SearchAnswerEvidence, index: number) {
+  const intent = inferSearchIntent(query);
+  const claim = extractClaim(item).toLowerCase();
+  const normalizedQuery = query.toLowerCase();
+  const terms = normalizedQuery.split(/[^a-z0-9]+/).filter((term) => term.length > 2);
+
+  let score = 0;
+  if (categoryMatchesIntent(item.category, intent)) score += 4;
+  if (item.strategic_insight) score += 2;
+  if (item.company && item.company !== 'Unknown') score += 1;
+  score += Math.max(0, 3 - index);
+
+  score += terms.reduce((sum, term) => sum + (claim.includes(term) ? 1 : 0), 0);
+
+  return score;
+}
+
+function selectEvidenceForAnswer(query: string, results: SearchAnswerEvidence[]) {
+  const ranked = results
+    .map((item, index) => ({ item, index, score: evidenceScore(query, item, index) }))
+    .sort((left, right) => right.score - left.score);
+
+  const selected: SearchAnswerEvidence[] = [];
+  const seenCompanies = new Set<string>();
+  const seenClaims = new Set<string>();
+
+  for (const entry of ranked) {
+    const claim = extractClaim(entry.item);
+    const company = entry.item.company || 'Unknown';
+
+    if (!claim || seenClaims.has(claim)) {
+      continue;
+    }
+
+    if (selected.length < 2 || !seenCompanies.has(company)) {
+      selected.push(entry.item);
+      seenCompanies.add(company);
+      seenClaims.add(claim);
+    }
+
+    if (selected.length === 3) {
+      break;
+    }
+  }
+
+  return selected.length > 0 ? selected : results.slice(0, 3);
+}
+
+function buildLeadSentence(
+  query: string,
+  intent: SearchIntent,
+  companies: string[],
+  resultCount: number
+) {
+  const companyList = companies.length > 0 ? companies.join(', ') : 'the tracked companies';
+
+  switch (intent) {
+    case 'pricing':
+      return `On pricing, the strongest current signals come from ${companyList}.`;
+    case 'incident':
+      return `On reliability and incident risk, the clearest current signals come from ${companyList}.`;
+    case 'release':
+      return `On launches and releases, the strongest current signals come from ${companyList}.`;
+    case 'docs':
+      return `On documentation and API changes, the clearest current signals come from ${companyList}.`;
+    case 'github':
+      return `On SDK and repository activity, the clearest current signals come from ${companyList}.`;
+    default:
+      return companies.length > 0
+        ? `For "${query}", the strongest current signals come from ${companyList}.`
+        : `For "${query}", RivalSense found ${resultCount} relevant intelligence signals.`;
+  }
+}
+
+function buildEvidenceSentence(claims: string[]) {
+  if (claims.length === 0) {
+    return '';
+  }
+
+  if (claims.length === 1) {
+    return claims[0];
+  }
+
+  const [first, second, third] = claims;
+  const pieces = [first, second, third].filter(Boolean);
+  return pieces.join(' ');
 }
 
 async function callGroqSearchAnswer(input: {
@@ -174,7 +311,7 @@ async function callGroqSearchAnswer(input: {
           {
             role: 'system',
             content:
-              'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant: 2-4 sentences, plain English, synthesized from the evidence, no bullets, no markdown, no hedging, no JSON wrapper text.',
+              'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
           },
           {
             role: 'user',
@@ -189,7 +326,7 @@ async function callGroqSearchAnswer(input: {
                 strategic_insight: item.strategic_insight,
               })),
               instruction:
-                'Answer the query directly using only this evidence. Combine overlapping items into one coherent brief and mention the most important companies or themes.',
+                'Answer the query directly using only this evidence. Prioritize the most recent and relevant signals, collapse duplicates, mention the most important companies or themes, and make the answer feel like one polished analyst response rather than stitched snippets.',
             }),
           },
         ],

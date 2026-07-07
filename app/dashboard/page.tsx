@@ -168,6 +168,17 @@ function canonicalizeResultText(value?: string | null) {
   return (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+function compactSourceLabel(url?: string | null) {
+  if (!url) return '';
+
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
 export default function Dashboard() {
   const [userId, setUserId] = useState('');
   const [sources, setSources] = useState<Source[]>([]);
@@ -441,169 +452,203 @@ export default function Dashboard() {
                 margin: '0 0 16px',
               }}
             >
-              Stay ahead of the AI industry.
+              Ask the database first.
             </h1>
 
             <p style={{ ...mutedStyle, fontSize: 18, maxWidth: 720 }}>
-              RivalSense continuously monitors AI companies for product launches,
-              pricing changes, documentation updates, and strategic shifts. Get sourced
-              intelligence delivered directly to your dashboard.
+              RivalSense should feel like a search product, not a monitoring console.
+              Ask about launches, pricing, documentation, incidents, and strategic shifts,
+              then review the sourced evidence underneath.
             </p>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-                gap: 12,
-                marginTop: 28,
-              }}
-            >
-              <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Companies</p>
-                <strong style={{ fontSize: 34 }}>{competitorCount}</strong>
+            <div style={{ maxWidth: 860, marginTop: 28 }}>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  askIntelligenceDatabase();
+                }}
+                style={{ position: 'relative' }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                    gap: 10,
+                  }}
+                >
+                  <input
+                    className="input"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onFocus={() => setQueryFocused(true)}
+                    onBlur={() => setQueryFocused(false)}
+                    placeholder="Ask about launches, pricing changes, incidents, partnerships, or product strategy..."
+                    style={{ minHeight: 58, fontSize: 17 }}
+                  />
+
+                  <button className="btn" disabled={querying || !query.trim()}>
+                    {querying ? 'Searching...' : 'Ask RivalSense'}
+                  </button>
+                </div>
+
+                {queryFocused && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      zIndex: 5,
+                      top: 70,
+                      left: 0,
+                      right: 0,
+                      display: 'grid',
+                      gap: 8,
+                      padding: 12,
+                      borderRadius: 16,
+                      border: '1px solid rgba(148,163,184,0.18)',
+                      background: 'rgba(2,6,23,0.98)',
+                      boxShadow: '0 18px 60px rgba(0,0,0,0.38)',
+                    }}
+                  >
+                    {querySuggestions
+                      .filter((suggestion) =>
+                        suggestion.toLowerCase().includes(query.toLowerCase().trim())
+                      )
+                      .slice(0, 5)
+                      .map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => askIntelligenceDatabase(suggestion)}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '10px 12px',
+                            borderRadius: 12,
+                            border: '1px solid rgba(148,163,184,0.12)',
+                            background: 'rgba(15,23,42,0.78)',
+                            color: '#E2E8F0',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </form>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  marginTop: 14,
+                }}
+              >
+                {querySuggestions.slice(0, 4).map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => askIntelligenceDatabase(suggestion)}
+                    style={{
+                      borderRadius: 999,
+                      border: '1px solid rgba(148,163,184,0.18)',
+                      background: 'rgba(15,23,42,0.72)',
+                      color: '#E2E8F0',
+                      padding: '10px 14px',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                    }}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
 
-              <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Sources</p>
-                <strong style={{ fontSize: 34 }}>{health.total}</strong>
-              </div>
+              {queryError && <p style={{ color: '#FCA5A5', marginTop: 16 }}>{queryError}</p>}
 
-              <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Healthy</p>
-                <strong style={{ fontSize: 34 }}>{health.healthy}</strong>
-              </div>
-
-              <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Changes detected</p>
-                <strong style={{ fontSize: 34 }}>{changes.length}</strong>
-              </div>
-
-              <div style={{ ...cardStyle, padding: 18 }}>
-                <p style={{ ...mutedStyle, margin: 0 }}>Default-company cron</p>
-                <strong style={{ fontSize: 34 }}>
-                  {automation.lastRanAt ? formatDate(automation.lastRanAt) : 'Not yet run'}
-                </strong>
-                <p style={{ ...mutedStyle, margin: '6px 0 0' }}>
-                  {automation.checkedSources} checked, {automation.failedSources} failed
-                </p>
-              </div>
+              {queryAnswer && (
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 22,
+                    borderRadius: 20,
+                    border: '1px solid rgba(56,189,248,0.24)',
+                    background: 'rgba(8,47,73,0.34)',
+                    maxWidth: 820,
+                  }}
+                >
+                  <p
+                    style={{
+                      ...mutedStyle,
+                      margin: '0 0 8px',
+                      textTransform: 'uppercase',
+                      letterSpacing: 1.5,
+                      fontSize: 12,
+                      fontWeight: 800,
+                    }}
+                  >
+                    Answer
+                  </p>
+                  <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7 }}>{queryAnswer}</p>
+                  <p style={{ ...mutedStyle, margin: '10px 0 0', fontSize: 13 }}>
+                    Generated from the strongest matching intelligence signals in your database.
+                  </p>
+                </div>
+              )}
             </div>
+          </div>
+        </section>
+
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 12,
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ ...cardStyle, padding: 18 }}>
+            <p style={{ ...mutedStyle, margin: 0 }}>Companies</p>
+            <strong style={{ fontSize: 28 }}>{competitorCount}</strong>
+          </div>
+
+          <div style={{ ...cardStyle, padding: 18 }}>
+            <p style={{ ...mutedStyle, margin: 0 }}>Sources</p>
+            <strong style={{ fontSize: 28 }}>{health.total}</strong>
+          </div>
+
+          <div style={{ ...cardStyle, padding: 18 }}>
+            <p style={{ ...mutedStyle, margin: 0 }}>Healthy</p>
+            <strong style={{ fontSize: 28 }}>{health.healthy}</strong>
+          </div>
+
+          <div style={{ ...cardStyle, padding: 18 }}>
+            <p style={{ ...mutedStyle, margin: 0 }}>Changes detected</p>
+            <strong style={{ fontSize: 28 }}>{changes.length}</strong>
+          </div>
+
+          <div style={{ ...cardStyle, padding: 18 }}>
+            <p style={{ ...mutedStyle, margin: 0 }}>Default-company cron</p>
+            <strong style={{ fontSize: 18 }}>
+              {automation.lastRanAt ? formatDate(automation.lastRanAt) : 'Not yet run'}
+            </strong>
+            <p style={{ ...mutedStyle, margin: '6px 0 0' }}>
+              {automation.checkedSources} checked, {automation.failedSources} failed
+            </p>
           </div>
         </section>
 
         <section style={{ ...cardStyle, padding: 24, marginBottom: 18 }}>
           <div style={{ marginBottom: 16 }}>
-            <h2 style={{ margin: 0 }}>Ask the intelligence database</h2>
+            <h2 style={{ margin: 0 }}>Why RivalSense Thinks This</h2>
             <p style={{ ...mutedStyle, marginBottom: 0 }}>
-              Search market intelligence by company, product, topic, category, or strategic signal.
+              The strongest supporting signals behind the answer, with direct source links.
             </p>
           </div>
 
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              askIntelligenceDatabase();
-            }}
-            style={{ position: 'relative' }}
-          >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) auto',
-                gap: 10,
-              }}
-            >
-              <input
-                className="input"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onFocus={() => setQueryFocused(true)}
-                onBlur={() => setQueryFocused(false)}
-                placeholder="Ask about launches, pricing, incidents, AI features, partnerships..."
-                style={{ minHeight: 46 }}
-              />
-
-              <button className="btn" disabled={querying || !query.trim()}>
-                {querying ? 'Searching...' : 'Ask'}
-              </button>
-            </div>
-
-            {queryFocused && (
-              <div
-                style={{
-                  position: 'absolute',
-                  zIndex: 5,
-                  top: 58,
-                  left: 0,
-                  right: 0,
-                  display: 'grid',
-                  gap: 8,
-                  padding: 12,
-                  borderRadius: 16,
-                  border: '1px solid rgba(148,163,184,0.18)',
-                  background: 'rgba(2,6,23,0.98)',
-                  boxShadow: '0 18px 60px rgba(0,0,0,0.38)',
-                }}
-              >
-                {querySuggestions
-                  .filter((suggestion) =>
-                    suggestion.toLowerCase().includes(query.toLowerCase().trim())
-                  )
-                  .slice(0, 5)
-                  .map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => askIntelligenceDatabase(suggestion)}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '10px 12px',
-                        borderRadius: 12,
-                        border: '1px solid rgba(148,163,184,0.12)',
-                        background: 'rgba(15,23,42,0.78)',
-                        color: '#E2E8F0',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-              </div>
-            )}
-          </form>
-
-          {queryError && <p style={{ color: '#FCA5A5' }}>{queryError}</p>}
-
-          {queryAnswer && (
-            <div
-              style={{
-                marginTop: 18,
-                padding: 18,
-                borderRadius: 18,
-                border: '1px solid rgba(56,189,248,0.24)',
-                background: 'rgba(8,47,73,0.34)',
-              }}
-            >
-              <p
-                style={{
-                  ...mutedStyle,
-                  margin: '0 0 8px',
-                  textTransform: 'uppercase',
-                  letterSpacing: 1.5,
-                  fontSize: 12,
-                  fontWeight: 800,
-                }}
-              >
-                Strategic brief
-              </p>
-              <p style={{ margin: 0 }}>{queryAnswer}</p>
-            </div>
-          )}
-
           {queryResults.length > 0 && (
-            <div style={{ display: 'grid', gap: 12, marginTop: 18 }}>
+            <div style={{ display: 'grid', gap: 12 }}>
               {queryResults.map((result) => (
                 (() => {
                   const insight =
@@ -617,52 +662,116 @@ export default function Dashboard() {
                   key={result.id}
                   style={{
                     padding: 18,
-                    borderRadius: 18,
+                    borderRadius: 20,
                     border: '1px solid rgba(148,163,184,0.16)',
-                    background: 'rgba(2,6,23,0.38)',
+                    background: 'rgba(7,10,18,0.72)',
                   }}
                 >
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={statusBadgeStyle('baseline_created')}>
-                      {result.category}
-                    </span>
-                    {(result.company || result.company_name) && (
-                      <span style={statusBadgeStyle('not_checked')}>
-                        {result.company || result.company_name}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {(result.company || result.company_name) && (
+                        <span style={statusBadgeStyle('not_checked')}>
+                          {result.company || result.company_name}
+                        </span>
+                      )}
+                      <span style={statusBadgeStyle('baseline_created')}>
+                        {result.category}
                       </span>
-                    )}
+                    </div>
+
+                    <p style={{ ...mutedStyle, margin: 0, fontSize: 13 }}>
+                      Observed {formatDate(result.observed_at)}
+                    </p>
                   </div>
 
-                  <h3 style={{ marginBottom: 6 }}>{result.title}</h3>
-                  <p style={mutedStyle}>
-                    Observed {formatDate(result.observed_at)}
-                    {typeof result.confidence_score === 'number'
-                      ? ` · ${Math.round(result.confidence_score * 100)}% confidence`
-                      : ''}
+                  <h3 style={{ marginBottom: 8 }}>{result.title}</h3>
+
+                  <p style={{ marginTop: 0, marginBottom: 10, fontSize: 15, lineHeight: 1.65 }}>
+                    {result.summary}
                   </p>
-                  <p>{result.summary}</p>
 
                   {insight && (
-                    <p style={{ ...mutedStyle, marginBottom: 8 }}>
-                      {insight}
-                    </p>
-                  )}
-
-                  {(result.topics || []).length > 0 && (
-                    <p style={{ ...mutedStyle, marginBottom: 8 }}>
-                      Topics: {(result.topics || []).join(', ')}
-                    </p>
-                  )}
-
-                  {result.source_url && (
-                    <a
-                      href={result.source_url}
-                      target="_blank"
-                      style={{ color: '#93C5FD', overflowWrap: 'anywhere' }}
+                    <div
+                      style={{
+                        borderLeft: '2px solid rgba(56,189,248,0.42)',
+                        paddingLeft: 12,
+                        marginBottom: 12,
+                      }}
                     >
-                      {result.source_url}
-                    </a>
+                      <p
+                        style={{
+                          ...mutedStyle,
+                          margin: '0 0 4px',
+                          textTransform: 'uppercase',
+                          letterSpacing: 1.2,
+                          fontSize: 11,
+                          fontWeight: 800,
+                        }}
+                      >
+                        Implication
+                      </p>
+                      <p style={{ ...mutedStyle, margin: 0, lineHeight: 1.6 }}>{insight}</p>
+                    </div>
                   )}
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                      marginTop: 14,
+                      paddingTop: 14,
+                      borderTop: '1px solid rgba(148,163,184,0.12)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {typeof result.confidence_score === 'number' && (
+                        <span style={statusBadgeStyle('unchanged')}>
+                          {Math.round(result.confidence_score * 100)}% confidence
+                        </span>
+                      )}
+                      {(result.topics || [])
+                        .filter((topic) => topic !== (result.company || result.company_name))
+                        .slice(0, 2)
+                        .map((topic) => (
+                          <span
+                            key={topic}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              borderRadius: 999,
+                              padding: '5px 10px',
+                              fontSize: 12,
+                              border: '1px solid rgba(148,163,184,0.16)',
+                              color: '#CBD5E1',
+                              background: 'rgba(15,23,42,0.56)',
+                            }}
+                          >
+                            {topic}
+                          </span>
+                        ))}
+                    </div>
+
+                    {result.source_url && (
+                      <a
+                        href={result.source_url}
+                        target="_blank"
+                        style={{ color: '#93C5FD', textDecoration: 'none' }}
+                      >
+                        Source: {compactSourceLabel(result.source_url)}
+                      </a>
+                    )}
+                  </div>
                 </article>
                   );
                 })()
@@ -674,6 +783,12 @@ export default function Dashboard() {
             <p style={{ ...mutedStyle, marginBottom: 0, marginTop: 16 }}>
               No matching intelligence items yet. As source changes become structured intelligence items,
               this search will start returning answers.
+            </p>
+          )}
+
+          {!hasQueried && (
+            <p style={{ ...mutedStyle, marginBottom: 0 }}>
+              Run a search above to generate an answer and inspect the supporting evidence here.
             </p>
           )}
         </section>
