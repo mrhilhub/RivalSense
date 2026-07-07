@@ -106,6 +106,53 @@ async function sourceExists(
   return Boolean(data);
 }
 
+async function replaceLegacySourceUrl(
+  supabase: SupabaseClient,
+  userId: string,
+  competitorId: string,
+  type: string,
+  url: string,
+  legacyUrls?: string[]
+) {
+  if (!legacyUrls || legacyUrls.length === 0) {
+    return false;
+  }
+
+  const normalizedLegacyUrls = legacyUrls.map((legacyUrl) => normalizeUrl(legacyUrl));
+
+  const { data: existing, error } = await supabase
+    .from('monitored_sources')
+    .select('id,url')
+    .eq('user_id', userId)
+    .eq('competitor_id', competitorId)
+    .eq('type', type)
+    .in('url', normalizedLegacyUrls)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!existing) {
+    return false;
+  }
+
+  await supabase
+    .from('monitored_sources')
+    .update({
+      url,
+      active: true,
+      last_status: 'not_checked',
+      last_checked_at: null,
+    })
+    .eq('id', existing.id);
+
+  await trySetSystemFlag(supabase, 'monitored_sources', existing.id);
+
+  return true;
+}
+
 async function historicItemExists(
   supabase: SupabaseClient,
   userId: string,
@@ -155,6 +202,21 @@ export async function bootstrapAiUniverseForUser(
 
     for (const source of company.sources) {
       const url = normalizeUrl(source.url);
+      const repairedLegacySource = await replaceLegacySourceUrl(
+        supabase,
+        userId,
+        competitorId,
+        source.type,
+        url,
+        source.legacyUrls
+      );
+
+      if (repairedLegacySource) {
+        createdSources += 1;
+        log(`Updated ${company.name} → ${source.type}: ${url}`);
+        continue;
+      }
+
       const exists = await sourceExists(supabase, userId, competitorId, url, source.type);
 
       if (exists) {

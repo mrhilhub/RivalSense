@@ -10,6 +10,7 @@ export type SeedSourceType =
 export type SeedTrackedSource = {
   type: SeedSourceType;
   url: string;
+  legacyUrls?: string[];
 };
 
 export type SeedCompany = {
@@ -21,15 +22,35 @@ export type SeedCompany = {
 export const defaultAiCompanies: SeedCompany[] = [
   {
     name: 'OpenAI',
-    website: 'https://openai.com',
+    website: 'https://developers.openai.com',
     sources: [
-      { type: 'website', url: 'https://openai.com' },
-      { type: 'docs', url: 'https://platform.openai.com/docs' },
-      { type: 'pricing', url: 'https://openai.com/pricing' },
-      { type: 'changelog', url: 'https://platform.openai.com/docs/changelog' },
-      { type: 'release', url: 'https://openai.com/index/' },
-      { type: 'docs', url: 'https://help.openai.com' },
-      { type: 'github', url: 'https://github.com/openai' },
+      { type: 'website', url: 'https://developers.openai.com', legacyUrls: ['https://openai.com'] },
+      {
+        type: 'docs',
+        url: 'https://developers.openai.com/api/docs',
+        legacyUrls: ['https://platform.openai.com/docs'],
+      },
+      {
+        type: 'pricing',
+        url: 'https://developers.openai.com/api/pricing',
+        legacyUrls: ['https://openai.com/pricing'],
+      },
+      {
+        type: 'changelog',
+        url: 'https://developers.openai.com/changelog',
+        legacyUrls: ['https://platform.openai.com/docs/changelog'],
+      },
+      {
+        type: 'release',
+        url: 'https://github.com/openai/openai-node/releases',
+        legacyUrls: ['https://openai.com/index/'],
+      },
+      {
+        type: 'incident',
+        url: 'https://status.openai.com',
+        legacyUrls: ['https://help.openai.com'],
+      },
+      { type: 'github', url: 'https://github.com/openai/openai-openapi', legacyUrls: ['https://github.com/openai'] },
     ],
   },
   {

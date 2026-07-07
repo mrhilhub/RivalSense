@@ -81,6 +81,11 @@ type QueryResult = {
   company_name?: string | null;
 };
 
+type QueryResponse = {
+  answer?: string | null;
+  results?: QueryResult[];
+};
+
 const querySuggestions = [
   'Which companies are launching new database products?',
   'Show pricing changes from the last month',
@@ -159,6 +164,10 @@ function importanceLabel(score: number) {
   return 'Low priority';
 }
 
+function canonicalizeResultText(value?: string | null) {
+  return (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 export default function Dashboard() {
   const [userId, setUserId] = useState('');
   const [sources, setSources] = useState<Source[]>([]);
@@ -173,6 +182,7 @@ export default function Dashboard() {
   const [queryFocused, setQueryFocused] = useState(false);
   const [querying, setQuerying] = useState(false);
   const [queryResults, setQueryResults] = useState<QueryResult[]>([]);
+  const [queryAnswer, setQueryAnswer] = useState('');
   const [queryError, setQueryError] = useState('');
   const [hasQueried, setHasQueried] = useState(false);
 
@@ -339,9 +349,12 @@ export default function Dashboard() {
         throw new Error(json.error || 'Search failed.');
       }
 
-      setQueryResults(Array.isArray(json.results) ? json.results : []);
+      const payload = json as QueryResponse;
+      setQueryAnswer(typeof payload.answer === 'string' ? payload.answer : '');
+      setQueryResults(Array.isArray(payload.results) ? payload.results : []);
     } catch (error) {
       setQueryError(error instanceof Error ? error.message : 'Search failed.');
+      setQueryAnswer('');
       setQueryResults([]);
     }
 
@@ -563,9 +576,43 @@ export default function Dashboard() {
 
           {queryError && <p style={{ color: '#FCA5A5' }}>{queryError}</p>}
 
+          {queryAnswer && (
+            <div
+              style={{
+                marginTop: 18,
+                padding: 18,
+                borderRadius: 18,
+                border: '1px solid rgba(56,189,248,0.24)',
+                background: 'rgba(8,47,73,0.34)',
+              }}
+            >
+              <p
+                style={{
+                  ...mutedStyle,
+                  margin: '0 0 8px',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1.5,
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                Strategic brief
+              </p>
+              <p style={{ margin: 0 }}>{queryAnswer}</p>
+            </div>
+          )}
+
           {queryResults.length > 0 && (
             <div style={{ display: 'grid', gap: 12, marginTop: 18 }}>
               {queryResults.map((result) => (
+                (() => {
+                  const insight =
+                    result.strategic_insight &&
+                    canonicalizeResultText(result.strategic_insight) !== canonicalizeResultText(result.summary)
+                      ? result.strategic_insight
+                      : null;
+
+                  return (
                 <article
                   key={result.id}
                   style={{
@@ -595,9 +642,9 @@ export default function Dashboard() {
                   </p>
                   <p>{result.summary}</p>
 
-                  {result.strategic_insight && (
+                  {insight && (
                     <p style={{ ...mutedStyle, marginBottom: 8 }}>
-                      {result.strategic_insight}
+                      {insight}
                     </p>
                   )}
 
@@ -617,6 +664,8 @@ export default function Dashboard() {
                     </a>
                   )}
                 </article>
+                  );
+                })()
               ))}
             </div>
           )}

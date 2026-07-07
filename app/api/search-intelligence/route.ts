@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCleanText } from '@/lib/crawler';
 import { makeDiffExcerpt } from '@/lib/diff';
-import { normalizeSummary, summarizeChange } from '@/lib/ai';
+import { generateSearchAnswer, normalizeSummary, summarizeChange } from '@/lib/ai';
 import { generateEmbedding } from '@/lib/embeddings';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { defaultAiCompanies } from '@/lib/aiCompanyUniverse';
@@ -105,6 +105,20 @@ function isGenericSummary(value?: string | null) {
   ].some((pattern) => pattern.test(cleaned));
 }
 
+function canonicalizeText(value?: string | null) {
+  return normalizeSummary(value).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function normalizeInsight(summary: string, strategicInsight?: string | null) {
+  if (!strategicInsight || isGenericSummary(strategicInsight)) {
+    return null;
+  }
+
+  return canonicalizeText(summary) === canonicalizeText(strategicInsight)
+    ? null
+    : normalizeSummary(strategicInsight);
+}
+
 function rankSource(query: string, source: MonitoredSourceRow) {
   const sourceText = `${source.url} ${source.type} ${companyName(source.competitors)}`.toLowerCase();
   return queryTerms(query).reduce((score, term) => score + (sourceText.includes(term) ? 1 : 0), 0);
@@ -174,7 +188,7 @@ async function enrichGenericResult(
       id: item.id,
       title: item.title,
       summary: updatedSummary,
-      strategic_insight: updatedSummary,
+      strategic_insight: null,
       category: item.category,
       topics: item.topics || [],
       source_url: item.source_url,
@@ -275,7 +289,7 @@ async function liveSearchFallback(
         id: `live:${source.id}`,
         title: `${company} ${sourceType} update`,
         summary: normalizeSummary(ai.summary),
-        strategic_insight: normalizeSummary(ai.summary),
+        strategic_insight: null,
         category: sourceType,
         topics: [company, sourceType],
         source_url: source.url,
@@ -382,7 +396,7 @@ export async function GET(req: NextRequest) {
       id: item.id,
       title: item.title,
       summary: normalizeSummary(item.summary),
-      strategic_insight: normalizeSummary(item.strategic_insight),
+      strategic_insight: normalizeInsight(item.summary, item.strategic_insight),
       category: item.category,
       topics: item.topics || [],
       source_url: item.source_url,
@@ -415,8 +429,24 @@ export async function GET(req: NextRequest) {
       finalResults = await liveSearchFallback(admin, user.id, query, matchCount);
     }
 
+    const answer =
+      finalResults.length > 0
+        ? await generateSearchAnswer({
+            query,
+            results: finalResults.map((item) => ({
+              company: item.company_name,
+              title: item.title,
+              summary: item.summary,
+              strategic_insight: item.strategic_insight,
+              category: item.category,
+              observed_at: item.observed_at,
+            })),
+          })
+        : null;
+
     return NextResponse.json({
       query,
+      answer,
       results: finalResults.map((item) => ({
         id: item.id,
         title: item.title,

@@ -3,6 +3,15 @@ export interface SummaryResult {
   importance_score: number;
 }
 
+export interface SearchAnswerEvidence {
+  company: string;
+  title: string;
+  summary: string;
+  strategic_insight?: string | null;
+  category: string;
+  observed_at: string;
+}
+
 export function normalizeSummary(summary: string | null | undefined): string {
   const cleaned = (summary || '').trim();
   if (!cleaned) {
@@ -114,6 +123,102 @@ async function callGroqSummary(input: { url: string; diff: string }): Promise<Su
   }
 
   return null;
+}
+
+function buildLocalSearchAnswer(input: {
+  query: string;
+  results: SearchAnswerEvidence[];
+}): string {
+  const topResults = input.results.slice(0, 3);
+  const companies = Array.from(
+    new Set(topResults.map((item) => item.company).filter((name) => name && name !== 'Unknown'))
+  );
+
+  const evidence = topResults
+    .map((item) => item.strategic_insight || item.summary)
+    .map((text) => normalizeSummary(text).replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const uniqueEvidence = Array.from(new Set(evidence));
+  const opener = companies.length > 0
+    ? `For "${input.query}", the clearest signals are coming from ${companies.join(', ')}.`
+    : `For "${input.query}", RivalSense found ${input.results.length} relevant intelligence signals.`;
+  const body = uniqueEvidence.slice(0, 2).join(' ');
+  const closer = input.results.length > 3
+    ? `There are ${input.results.length - 3} additional supporting items below.`
+    : 'The evidence below supports this brief.';
+
+  return [opener, body, closer].filter(Boolean).join(' ');
+}
+
+async function callGroqSearchAnswer(input: {
+  query: string;
+  results: SearchAnswerEvidence[];
+}): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || input.results.length === 0) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant: 2-4 sentences, plain English, synthesized from the evidence, no bullets, no markdown, no hedging, no JSON wrapper text.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              query: input.query,
+              evidence: input.results.slice(0, 5).map((item) => ({
+                company: item.company,
+                title: item.title,
+                category: item.category,
+                observed_at: item.observed_at,
+                summary: item.summary,
+                strategic_insight: item.strategic_insight,
+              })),
+              instruction:
+                'Answer the query directly using only this evidence. Combine overlapping items into one coherent brief and mention the most important companies or themes.',
+            }),
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const content = payload.choices?.[0]?.message?.content?.trim();
+    return content || null;
+  } catch (error) {
+    console.warn('Groq search answer request failed, falling back to local answer:', error);
+  }
+
+  return null;
+}
+
+export async function generateSearchAnswer(input: {
+  query: string;
+  results: SearchAnswerEvidence[];
+}): Promise<string> {
+  const answer = await callGroqSearchAnswer(input);
+  return answer || buildLocalSearchAnswer(input);
 }
 
 export async function summarizeChange(input: { url: string; oldText: string; newText: string; diff: string }): Promise<SummaryResult> {
