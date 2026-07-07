@@ -17,11 +17,15 @@ export type RunSourceChecksResult = {
   }>;
 };
 
+type RunTargetedSourceChecksOptions = {
+  userId?: string;
+};
+
 type MonitoredSourceRow = {
   id: string;
   url: string;
   user_id: string;
-  competitor_id: string;
+  competitor_id: string | null;
   type?: string | null;
   competitors?: { name?: string | null; is_system?: boolean | null } | { name?: string | null; is_system?: boolean | null }[] | null;
 };
@@ -208,6 +212,63 @@ async function processSource(source: MonitoredSourceRow) {
     url: source.url,
     status: 'changed' as const,
     summary: ai.summary,
+  };
+}
+
+export async function runTargetedSourceChecks(
+  sourceIds: string[],
+  options: RunTargetedSourceChecksOptions = {}
+): Promise<RunSourceChecksResult> {
+  if (sourceIds.length === 0) {
+    return {
+      checked: 0,
+      results: [],
+    };
+  }
+
+  const supabase = supabaseAdmin();
+  let query = supabase
+    .from('monitored_sources')
+    .select('*, competitors(name,is_system)')
+    .eq('active', true)
+    .in('id', sourceIds);
+
+  if (options.userId) {
+    query = query.eq('user_id', options.userId);
+  }
+
+  const { data: sources, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  if (!sources || sources.length === 0) {
+    return {
+      checked: 0,
+      results: [],
+    };
+  }
+
+  const results: RunSourceChecksResult['results'] = [];
+
+  for (const source of sources as MonitoredSourceRow[]) {
+    try {
+      const result = await processSource(source);
+      results.push(result);
+    } catch (e) {
+      await updateSourceStatus(source.id, 'error');
+      results.push({
+        url: source.url,
+        status: 'error',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  return {
+    checked: results.length,
+    results,
   };
 }
 

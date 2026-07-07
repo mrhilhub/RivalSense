@@ -4,6 +4,7 @@ import { fetchCleanText } from '@/lib/crawler';
 import { makeDiffExcerpt } from '@/lib/diff';
 import { generateSearchAnswer, normalizeSummary, summarizeChange } from '@/lib/ai';
 import { generateEmbedding } from '@/lib/embeddings';
+import { runTargetedSourceChecks } from '@/lib/runSourceChecks';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { defaultAiCompanies } from '@/lib/aiCompanyUniverse';
 
@@ -44,6 +45,26 @@ type SearchResult = {
   company_name: string;
   similarity?: number | null;
 };
+
+type SourceFreshnessRow = {
+  id: string;
+  url: string;
+  type: string | null;
+  last_checked_at: string | null;
+  last_status: string | null;
+};
+
+const SOURCE_STALE_WINDOW_HOURS: Record<string, number> = {
+  incident: 0.5,
+  changelog: 6,
+  release: 8,
+  pricing: 12,
+  github: 12,
+  docs: 24,
+  website: 36,
+};
+
+const TARGETED_REFRESH_LIMIT = 2;
 
 function normalizeQuery(value: string) {
   return value.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
@@ -122,6 +143,79 @@ function normalizeInsight(summary: string, strategicInsight?: string | null) {
 function rankSource(query: string, source: MonitoredSourceRow) {
   const sourceText = `${source.url} ${source.type} ${companyName(source.competitors)}`.toLowerCase();
   return queryTerms(query).reduce((score, term) => score + (sourceText.includes(term) ? 1 : 0), 0);
+}
+
+function staleWindowMs(sourceType?: string | null) {
+  const type = (sourceType || 'website').toLowerCase();
+  const hours = SOURCE_STALE_WINDOW_HOURS[type] ?? SOURCE_STALE_WINDOW_HOURS.website;
+  return hours * 60 * 60 * 1000;
+}
+
+function sourceNeedsRefresh(source: SourceFreshnessRow) {
+  const checkedAt = source.last_checked_at ? Date.parse(source.last_checked_at) : 0;
+  if (!checkedAt) {
+    return true;
+  }
+
+  if (source.last_status === 'error') {
+    return true;
+  }
+
+  return Date.now() - checkedAt > staleWindowMs(source.type);
+}
+
+async function triggerTargetedRefresh(
+  admin: ReturnType<typeof supabaseAdmin>,
+  userId: string,
+  results: SearchResult[]
+) {
+  try {
+    const urls = Array.from(
+      new Set(results.map((item) => item.source_url).filter((url): url is string => Boolean(url)))
+    ).slice(0, 8);
+
+    if (urls.length === 0) {
+      return;
+    }
+
+    const { data: candidateSources, error } = await admin
+      .from('monitored_sources')
+      .select('id,url,type,last_checked_at,last_status')
+      .eq('user_id', userId)
+      .eq('active', true)
+      .in('url', urls);
+
+    if (error || !candidateSources || candidateSources.length === 0) {
+      return;
+    }
+
+    const staleSourceIds = (candidateSources as SourceFreshnessRow[])
+      .filter(sourceNeedsRefresh)
+      .sort((left, right) => {
+        const leftChecked = left.last_checked_at ? Date.parse(left.last_checked_at) : 0;
+        const rightChecked = right.last_checked_at ? Date.parse(right.last_checked_at) : 0;
+        return leftChecked - rightChecked;
+      })
+      .slice(0, TARGETED_REFRESH_LIMIT)
+      .map((source) => source.id);
+
+    if (staleSourceIds.length === 0) {
+      return;
+    }
+
+    void runTargetedSourceChecks(staleSourceIds, { userId })
+      .then((refreshResult) => {
+        console.info('Triggered targeted refresh from search', {
+          userId,
+          checked: refreshResult.checked,
+        });
+      })
+      .catch((refreshError) => {
+        console.warn('Targeted refresh from search failed:', refreshError);
+      });
+  } catch (refreshSetupError) {
+    console.warn('Failed to schedule targeted refresh from search:', refreshSetupError);
+  }
 }
 
 async function enrichGenericResult(
@@ -428,6 +522,8 @@ export async function GET(req: NextRequest) {
     if (finalResults.length === 0) {
       finalResults = await liveSearchFallback(admin, user.id, query, matchCount);
     }
+
+    void triggerTargetedRefresh(admin, user.id, finalResults);
 
     const answer =
       finalResults.length > 0

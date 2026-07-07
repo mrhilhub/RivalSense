@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { defaultAiCompanies } from './aiCompanyUniverse';
+import { generateIntelligenceEmbedding } from './embeddings';
 import { getHistoricSeedsForCompany } from './historicIntelligenceSeeds';
 
 function normalizeUrl(url: string) {
@@ -153,14 +154,21 @@ async function replaceLegacySourceUrl(
   return true;
 }
 
-async function historicItemExists(
+type HistoricItemRecord = {
+  id: string;
+  source_id?: string | null;
+  source_url?: string | null;
+  embedding?: number[] | null;
+};
+
+async function findHistoricItem(
   supabase: SupabaseClient,
   userId: string,
   seedKey: string
 ) {
   const { data, error } = await supabase
     .from('intelligence_items')
-    .select('id')
+    .select('id,source_id,source_url,embedding')
     .eq('user_id', userId)
     .contains('metadata', { seed_key: seedKey })
     .maybeSingle();
@@ -169,7 +177,33 @@ async function historicItemExists(
     throw error;
   }
 
-  return Boolean(data);
+  return (data as HistoricItemRecord | null) || null;
+}
+
+function getCanonicalSourceUrl(companyName: string, sourceType: string, fallbackUrl: string) {
+  const company = defaultAiCompanies.find((candidate) => candidate.name === companyName);
+  const matchingSource = company?.sources.find((source) => source.type === sourceType);
+
+  return normalizeUrl(matchingSource?.url || fallbackUrl);
+}
+
+async function ensureHistoricItemEmbedding(
+  supabase: SupabaseClient,
+  itemId: string,
+  title: string,
+  summary: string,
+  strategicInsight: string
+) {
+  const embedding = await generateIntelligenceEmbedding(title, summary, strategicInsight);
+
+  const { error } = await supabase
+    .from('intelligence_items')
+    .update({ embedding })
+    .eq('id', itemId);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function bootstrapAiUniverseForUser(
@@ -260,10 +294,60 @@ export async function bootstrapAiUniverseForUser(
     const historicalSeeds = getHistoricSeedsForCompany(company.name);
 
     for (const seed of historicalSeeds) {
-      const seedKey = `${normalizeKey(company.name)}:${normalizeKey(seed.title)}:${normalizeUrl(seed.sourceUrl)}`;
-      const exists = await historicItemExists(supabase, userId, seedKey);
+      const canonicalSourceUrl = getCanonicalSourceUrl(company.name, seed.sourceType, seed.sourceUrl);
+      const seedKey = `${normalizeKey(company.name)}:${normalizeKey(seed.title)}:${canonicalSourceUrl}`;
+      const existingHistoricItem = await findHistoricItem(supabase, userId, seedKey);
 
-      if (exists) {
+      const { data: sourceMatch, error: sourceError } = await supabase
+        .from('monitored_sources')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('competitor_id', competitorId)
+        .eq('type', seed.sourceType)
+        .eq('url', canonicalSourceUrl)
+        .maybeSingle();
+
+      if (sourceError) {
+        throw sourceError;
+      }
+
+      if (existingHistoricItem) {
+        const needsUpdate =
+          existingHistoricItem.source_id !== (sourceMatch?.id || null) ||
+          normalizeUrl(existingHistoricItem.source_url || '') !== canonicalSourceUrl;
+
+        if (needsUpdate) {
+          const { error } = await supabase
+            .from('intelligence_items')
+            .update({
+              source_id: sourceMatch?.id || null,
+              source_url: canonicalSourceUrl,
+              metadata: {
+                seed_key: seedKey,
+                seeded: true,
+                seeded_company: company.name,
+                seeded_source_type: seed.sourceType,
+                seeded_source_url: canonicalSourceUrl,
+              },
+            })
+            .eq('id', existingHistoricItem.id);
+
+          if (error) {
+            throw error;
+          }
+        }
+
+        if (!existingHistoricItem.embedding) {
+          await ensureHistoricItemEmbedding(
+            supabase,
+            existingHistoricItem.id,
+            seed.title,
+            seed.summary,
+            seed.strategicInsight
+          );
+          log(`Embedded historic item for ${company.name}: ${seed.title}`);
+        }
+
         continue;
       }
 
@@ -273,18 +357,11 @@ export async function bootstrapAiUniverseForUser(
         continue;
       }
 
-      const { data: sourceMatch, error: sourceError } = await supabase
-        .from('monitored_sources')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('competitor_id', competitorId)
-        .eq('type', seed.sourceType)
-        .eq('url', normalizeUrl(seed.sourceUrl))
-        .maybeSingle();
-
-      if (sourceError) {
-        throw sourceError;
-      }
+      const embedding = await generateIntelligenceEmbedding(
+        seed.title,
+        seed.summary,
+        seed.strategicInsight
+      );
 
       const { error } = await supabase.from('intelligence_items').insert({
         user_id: userId,
@@ -295,7 +372,7 @@ export async function bootstrapAiUniverseForUser(
         strategic_insight: seed.strategicInsight,
         category: seed.category,
         topics: seed.topics,
-        source_url: normalizeUrl(seed.sourceUrl),
+        source_url: canonicalSourceUrl,
         observed_at: observedAtFromDaysAgo(seed.daysAgo),
         confidence_score: seed.confidenceScore ?? 0.75,
         metadata: {
@@ -303,7 +380,7 @@ export async function bootstrapAiUniverseForUser(
           seeded: true,
           seeded_company: company.name,
           seeded_source_type: seed.sourceType,
-          seeded_source_url: normalizeUrl(seed.sourceUrl),
+          seeded_source_url: canonicalSourceUrl,
         },
         language: 'en',
         original_title: seed.title,
@@ -311,6 +388,7 @@ export async function bootstrapAiUniverseForUser(
         source_quality_score: 0.800,
         is_reviewed: true,
         is_dismissed: false,
+        embedding,
       });
 
       if (error) {

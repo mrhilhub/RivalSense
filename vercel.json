@@ -3,6 +3,10 @@
     {
       "path": "/api/check-default-companies",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/discover-companies",
+      "schedule": "15 14 * * *"
     }
   ]
 }
