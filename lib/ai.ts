@@ -466,6 +466,7 @@ function buildLocalSearchAnswer(input: {
 async function callGroqSearchAnswer(input: {
   query: string;
   results: SearchAnswerEvidence[];
+  context?: string;
 }): Promise<string | null> {
   if (input.results.length === 0) {
     return null;
@@ -488,6 +489,7 @@ async function callGroqSearchAnswer(input: {
         role: 'user',
         content: JSON.stringify({
           query: input.query,
+            conversation_context: input.context || null,
           company_rollup: companyRollup,
           evidence: evidence.map((item) => ({
             company: item.company,
@@ -528,6 +530,7 @@ async function callGroqSearchAnswer(input: {
 export async function generateSearchAnswer(input: {
   query: string;
   results: SearchAnswerEvidence[];
+  context?: string;
 }): Promise<string> {
   const answer = await callGroqSearchAnswer(input);
   return answer || buildLocalSearchAnswer(input);

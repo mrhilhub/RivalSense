@@ -219,6 +219,9 @@ export default function Dashboard() {
   const [queryAnswer, setQueryAnswer] = useState('');
   const [queryError, setQueryError] = useState('');
   const [hasQueried, setHasQueried] = useState(false);
+  const [followUpQuery, setFollowUpQuery] = useState('');
+  const [followUpQuerying, setFollowUpQuerying] = useState(false);
+  const [followUpError, setFollowUpError] = useState('');
 
   async function load() {
     setLoading(true);
@@ -340,10 +343,28 @@ export default function Dashboard() {
     setRefreshing(false);
   }
 
-  async function askIntelligenceDatabase(searchQuery = query) {
+  function buildSearchContext() {
+    if (!queryAnswer && queryResults.length === 0) {
+      return '';
+    }
+
+    return JSON.stringify({
+      previous_query: query,
+      previous_answer: queryAnswer,
+      previous_results: queryResults.slice(0, 5).map((result) => ({
+        company: result.company || result.company_name,
+        title: result.title,
+        category: result.category,
+        summary: result.summary,
+        strategic_insight: result.strategic_insight,
+      })),
+    });
+  }
+
+  async function askIntelligenceDatabase(searchQuery = query, context?: string) {
     const cleanQuery = searchQuery.trim();
 
-    if (!cleanQuery || !userId) return;
+    if (!cleanQuery || !userId) return false;
 
     setQuery(cleanQuery);
     setQuerying(true);
@@ -354,6 +375,11 @@ export default function Dashboard() {
       const params = new URLSearchParams({
         q: cleanQuery,
       });
+
+      if (context) {
+        params.set('context', context);
+      }
+
       const supabase = supabaseAnon();
       const {
         data: { session },
@@ -373,14 +399,40 @@ export default function Dashboard() {
       const payload = json as QueryResponse;
       setQueryAnswer(typeof payload.answer === 'string' ? payload.answer : '');
       setQueryResults(Array.isArray(payload.results) ? payload.results : []);
+      return true;
     } catch (error) {
       setQueryError(error instanceof Error ? error.message : 'Search failed.');
       setQueryAnswer('');
       setQueryResults([]);
+      return false;
+    } finally {
+      setQuerying(false);
+      setQueryFocused(false);
+    }
+  }
+
+  async function askFollowUpQuestion() {
+    const cleanFollowUp = followUpQuery.trim();
+
+    if (!cleanFollowUp) {
+      return;
     }
 
-    setQuerying(false);
-    setQueryFocused(false);
+    setFollowUpQuerying(true);
+    setFollowUpError('');
+
+    try {
+      const context = buildSearchContext();
+      const success = await askIntelligenceDatabase(cleanFollowUp, context || undefined);
+      if (!success) {
+        setFollowUpError('Follow-up search failed.');
+      }
+      setFollowUpQuery('');
+    } catch (error) {
+      setFollowUpError(error instanceof Error ? error.message : 'Follow-up search failed.');
+    }
+
+    setFollowUpQuerying(false);
   }
 
   return (
@@ -601,6 +653,52 @@ export default function Dashboard() {
                   <p style={{ ...mutedStyle, margin: '10px 0 0', fontSize: 13 }}>
                     Generated from the strongest matching intelligence signals in your database.
                   </p>
+
+                  <div
+                    style={{
+                      marginTop: 18,
+                      paddingTop: 16,
+                      borderTop: '1px solid rgba(148,163,184,0.14)',
+                    }}
+                  >
+                    <p style={{ ...mutedStyle, margin: '0 0 10px', fontSize: 13 }}>
+                      Ask a follow-up using the answer above as context.
+                    </p>
+
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void askFollowUpQuestion();
+                      }}
+                      style={{ display: 'grid', gap: 10 }}
+                    >
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0, 1fr) auto',
+                          gap: 10,
+                        }}
+                      >
+                        <input
+                          className="input"
+                          value={followUpQuery}
+                          onChange={(event) => setFollowUpQuery(event.target.value)}
+                          placeholder="Why did you rank Anthropic highest?"
+                          style={{ minHeight: 48, fontSize: 15 }}
+                        />
+
+                        <button className="btn" disabled={followUpQuerying || !followUpQuery.trim()}>
+                          {followUpQuerying ? 'Following up...' : 'Ask follow-up'}
+                        </button>
+                      </div>
+                    </form>
+
+                    {followUpError && (
+                      <p style={{ color: '#FCA5A5', margin: '10px 0 0', fontSize: 13 }}>
+                        {followUpError}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

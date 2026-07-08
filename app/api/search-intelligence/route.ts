@@ -475,6 +475,7 @@ export async function GET(req: NextRequest) {
     const query = normalizeQuery(searchParams.get('q') || '');
     const matchCount = parseInt(searchParams.get('limit') || '20', 10);
     const useTextSearch = searchParams.get('text') === 'true';
+    const context = searchParams.get('context') || undefined;
 
     if (!query) {
       return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
@@ -641,6 +642,7 @@ export async function GET(req: NextRequest) {
               category: item.category,
               observed_at: item.observed_at,
             })),
+            context,
           })
         : null;
 
