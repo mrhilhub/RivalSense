@@ -5,6 +5,7 @@ import { makeDiffExcerpt } from '@/lib/diff';
 import { generateSearchAnswer, normalizeSummary, summarizeChange } from '@/lib/ai';
 import { generateEmbedding } from '@/lib/embeddings';
 import { runTargetedSourceChecks } from '@/lib/runSourceChecks';
+import { getSharedOwnerUserId } from '@/lib/sharedOwner';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { defaultAiCompanies } from '@/lib/aiCompanyUniverse';
 
@@ -503,13 +504,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const ownerUserId = getSharedOwnerUserId(user.id) || user.id;
+
     let results: IntelligenceSearchRow[] = [];
     const broadQuery = isBroadQuery(query);
     const crossCompanyQuery = broadQuery || isCrossCompanyQuery(query);
 
     if (useTextSearch) {
       const { data, error } = await supabase.rpc('search_intelligence_by_text', {
-        p_user_id: user.id,
+        p_user_id: ownerUserId,
         p_query: query,
         p_limit: matchCount,
       });
@@ -531,7 +534,7 @@ export async function GET(req: NextRequest) {
         if (error) {
           console.error('Semantic search error:', error);
           const { data: textData } = await supabase.rpc('search_intelligence_by_text', {
-            p_user_id: user.id,
+            p_user_id: ownerUserId,
             p_query: query,
             p_limit: matchCount,
           });
@@ -542,7 +545,7 @@ export async function GET(req: NextRequest) {
 
         if (crossCompanyQuery) {
           const { data: textData } = await supabase.rpc('search_intelligence_by_text', {
-            p_user_id: user.id,
+            p_user_id: ownerUserId,
             p_query: query,
             p_limit: Math.max(matchCount, 30),
           });
@@ -552,7 +555,7 @@ export async function GET(req: NextRequest) {
       } catch (embedError) {
         console.error('Embedding generation failed, falling back to text search:', embedError);
         const { data: textData } = await supabase.rpc('search_intelligence_by_text', {
-          p_user_id: user.id,
+          p_user_id: ownerUserId,
           p_query: query,
           p_limit: matchCount,
         });
@@ -584,7 +587,7 @@ export async function GET(req: NextRequest) {
       const distinctCompanies = new Set(finalResults.map((item) => item.company_name).filter(Boolean));
 
       if (distinctCompanies.size <= 1) {
-        const fallbackResults = await liveSearchFallback(admin, user.id, query, Math.max(3, Math.min(matchCount, 6)));
+        const fallbackResults = await liveSearchFallback(admin, ownerUserId, query, Math.max(3, Math.min(matchCount, 6)));
         const mergedResults = [...finalResults, ...fallbackResults];
         const seenIds = new Set<string>();
 
@@ -615,16 +618,16 @@ export async function GET(req: NextRequest) {
             return item;
           }
 
-          return enrichGenericResult(admin, sourceRow, user.id);
+          return enrichGenericResult(admin, sourceRow, ownerUserId);
         })
       );
     }
 
     if (finalResults.length === 0) {
-      finalResults = await liveSearchFallback(admin, user.id, query, matchCount);
+      finalResults = await liveSearchFallback(admin, ownerUserId, query, matchCount);
     }
 
-    void triggerTargetedRefresh(admin, user.id, finalResults);
+    void triggerTargetedRefresh(admin, ownerUserId, finalResults);
 
     const answer =
       finalResults.length > 0

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeSummary } from '@/lib/ai';
 import { supabaseAdmin } from '@/lib/supabaseServer';
+import { getSharedOwnerUserId } from '@/lib/sharedOwner';
 
 type SourceRow = {
   id: string;
@@ -26,7 +27,7 @@ function competitorName(
 }
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('user_id');
+  const userId = getSharedOwnerUserId(req.nextUrl.searchParams.get('user_id'));
 
   if (!userId) {
     return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });

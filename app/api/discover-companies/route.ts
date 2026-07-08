@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { runCompanyDiscoveryForUser } from '@/lib/companyDiscovery';
+import { getSharedOwnerUserId } from '@/lib/sharedOwner';
 
 export const maxDuration = 60;
 
@@ -43,8 +44,9 @@ async function getUserIdFromRequest(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const userId = await getUserIdFromRequest(req);
+    const ownerUserId = getSharedOwnerUserId(userId);
 
-    if (!userId) {
+    if (!ownerUserId) {
       return NextResponse.json(
         {
           error:
@@ -55,7 +57,7 @@ export async function GET(req: NextRequest) {
     }
 
     const limit = parseLimit(req.nextUrl.searchParams.get('limit'));
-    const result = await runCompanyDiscoveryForUser(userId, {
+    const result = await runCompanyDiscoveryForUser(ownerUserId, {
       maxCandidates: limit,
     });
 

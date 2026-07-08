@@ -216,6 +216,10 @@ export default function Dashboard() {
 
     setUserId(user.id);
 
+    const authHeaders = session?.access_token
+      ? { authorization: `Bearer ${session.access_token}` }
+      : undefined;
+
     if (session?.access_token) {
       await fetch('/api/bootstrap-ai-universe', {
         method: 'POST',
@@ -228,32 +232,17 @@ export default function Dashboard() {
         .catch(() => ({ success: false } as BootstrapResult));
     }
 
-    const comps = await supabase
-      .from('competitors')
-      .select('id')
-      .eq('user_id', user.id);
+    const [competitorsResponse, sourcesResponse, digestResponse, intelligenceResponse] = await Promise.all([
+      fetch(`/api/competitors?user_id=${user.id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => []),
+      fetch(`/api/sources?user_id=${user.id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => []),
+      fetch(`/api/digest?user_id=${user.id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => []),
+      fetch(`/api/intelligence?user_id=${user.id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => []),
+    ]);
 
-    setCompetitorCount(comps.data?.length || 0);
-
-    const sourceRows = await supabase
-      .from('monitored_sources')
-      .select('id,type,url,active,last_checked_at,last_status,is_system')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    setSources((sourceRows.data || []) as Source[]);
-
-    const digest = await fetch(`/api/digest?user_id=${user.id}`)
-      .then((r) => r.json())
-      .catch(() => []);
-
-    setChanges(Array.isArray(digest) ? digest : []);
-
-    const intel = await fetch(`/api/intelligence?user_id=${user.id}`)
-      .then((r) => r.json())
-      .catch(() => []);
-
-    setIntelligence(Array.isArray(intel) ? intel : []);
+    setCompetitorCount(Array.isArray(competitorsResponse) ? competitorsResponse.length : 0);
+    setSources(Array.isArray(sourcesResponse) ? sourcesResponse : []);
+    setChanges(Array.isArray(digestResponse) ? digestResponse : []);
+    setIntelligence(Array.isArray(intelligenceResponse) ? intelligenceResponse : []);
 
     setLoading(false);
   }

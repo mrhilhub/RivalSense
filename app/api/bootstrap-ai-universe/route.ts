@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { bootstrapAiUniverseForUser } from '@/lib/bootstrapAiUniverse';
+import { getSharedOwnerUserId } from '@/lib/sharedOwner';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export async function POST(req: NextRequest) {
@@ -30,7 +31,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const result = await bootstrapAiUniverseForUser(supabaseAdmin(), user.id, {
+    const ownerUserId = getSharedOwnerUserId(user.id) || user.id;
+
+    const result = await bootstrapAiUniverseForUser(supabaseAdmin(), ownerUserId, {
       seedHistorical: true,
     });
 

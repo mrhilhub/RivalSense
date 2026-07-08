@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeSummary } from '@/lib/ai';
+import { getSharedOwnerUserId } from '@/lib/sharedOwner';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 type IntelligenceSearchRow = {
@@ -91,6 +92,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const ownerUserId = getSharedOwnerUserId(user.id) || user.id;
+
   const escaped = escapeIlike(query);
   const terms = queryTerms(query);
   const patterns = [escaped, ...terms.map(escapeIlike)];
@@ -111,7 +114,7 @@ export async function GET(req: NextRequest) {
     .select(
       'id,title,summary,strategic_insight,category,topics,source_url,observed_at,confidence_score,company_id,competitors(name)'
     )
-    .eq('user_id', user.id)
+    .eq('user_id', ownerUserId)
     .or(filters.join(','))
     .order('observed_at', { ascending: false })
     .limit(limit);

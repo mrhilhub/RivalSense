@@ -154,6 +154,10 @@ export default function SourcesPage() {
 
     setUserId(user.id);
 
+    const authHeaders = session?.access_token
+      ? { authorization: `Bearer ${session.access_token}` }
+      : undefined;
+
     if (session?.access_token) {
       await fetch('/api/bootstrap-ai-universe', {
         method: 'POST',
@@ -164,26 +168,19 @@ export default function SourcesPage() {
       }).catch(() => null);
     }
 
-    const comps = await supabase
-      .from('competitors')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    const [competitorsResponse, sourcesResponse] = await Promise.all([
+      fetch(`/api/competitors?user_id=${user.id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => []),
+      fetch(`/api/sources?user_id=${user.id}`, { headers: authHeaders }).then((r) => r.json()).catch(() => []),
+    ]);
 
-    const compData = (comps.data || []) as Competitor[];
+    const compData = Array.isArray(competitorsResponse) ? (competitorsResponse as Competitor[]) : [];
     setCompetitors(compData);
 
     if (compData[0] && !competitorId) {
       setCompetitorId(compData[0].id);
     }
 
-    const sourceRows = await supabase
-      .from('monitored_sources')
-      .select('*, competitors(name,is_system)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    setSources((sourceRows.data || []) as Source[]);
+    setSources(Array.isArray(sourcesResponse) ? (sourcesResponse as Source[]) : []);
     setLoading(false);
   }, [competitorId]);
 
@@ -275,13 +272,11 @@ export default function SourcesPage() {
     const confirmed = window.confirm('Delete this monitored source?');
     if (!confirmed) return;
 
-    const supabase = supabaseAnon();
-
-    await supabase
-      .from('monitored_sources')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
+    await fetch('/api/sources', {
+      method: 'DELETE',
+      body: JSON.stringify({ id, user_id: userId }),
+      headers: { 'content-type': 'application/json' },
+    });
 
     await load();
   }
@@ -299,19 +294,11 @@ export default function SourcesPage() {
 
     if (!confirmed) return;
 
-    const supabase = supabaseAnon();
-
-    await supabase
-      .from('monitored_sources')
-      .delete()
-      .eq('competitor_id', id)
-      .eq('user_id', userId);
-
-    await supabase
-      .from('competitors')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
+    await fetch('/api/competitors', {
+      method: 'DELETE',
+      body: JSON.stringify({ id, user_id: userId }),
+      headers: { 'content-type': 'application/json' },
+    });
 
     if (competitorId === id) {
       setCompetitorId('');
