@@ -35,16 +35,24 @@ async function getOrCreateCompetitor(
   website: string,
   dryRun = false
 ) {
-  const { data: existing, error: lookupError } = await supabase
+  const { data: existingRows, error: lookupError } = await supabase
     .from('competitors')
     .select('id,name,website')
     .eq('user_id', userId)
     .or(`name.eq.${name},website.eq.${website}`)
-    .maybeSingle();
+    .order('created_at', { ascending: true })
+    .limit(10);
 
   if (lookupError) {
     throw lookupError;
   }
+
+  const existingList = (existingRows || []) as Array<{ id: string; name: string; website: string | null }>;
+  const existing =
+    existingList.find((row) => normalizeUrl(row.website || '') === website) ||
+    existingList.find((row) => row.name === name) ||
+    existingList[0] ||
+    null;
 
   if (existing) {
     if (dryRun) {
@@ -98,13 +106,13 @@ async function sourceExists(
     .eq('competitor_id', competitorId)
     .eq('type', type)
     .eq('url', url)
-    .maybeSingle();
+    .limit(1);
 
   if (error) {
     throw error;
   }
 
-  return Boolean(data);
+  return Array.isArray(data) ? data.length > 0 : Boolean(data);
 }
 
 async function replaceLegacySourceUrl(
@@ -171,13 +179,15 @@ async function findHistoricItem(
     .select('id,source_id,source_url,embedding')
     .eq('user_id', userId)
     .contains('metadata', { seed_key: seedKey })
-    .maybeSingle();
+    .order('observed_at', { ascending: false })
+    .limit(1);
 
   if (error) {
     throw error;
   }
 
-  return (data as HistoricItemRecord | null) || null;
+  const first = Array.isArray(data) ? data[0] : data;
+  return (first as HistoricItemRecord | null) || null;
 }
 
 function getCanonicalSourceUrl(companyName: string, sourceType: string, fallbackUrl: string) {
@@ -298,18 +308,21 @@ export async function bootstrapAiUniverseForUser(
       const seedKey = `${normalizeKey(company.name)}:${normalizeKey(seed.title)}:${canonicalSourceUrl}`;
       const existingHistoricItem = await findHistoricItem(supabase, userId, seedKey);
 
-      const { data: sourceMatch, error: sourceError } = await supabase
+      const { data: sourceMatches, error: sourceError } = await supabase
         .from('monitored_sources')
         .select('id')
         .eq('user_id', userId)
         .eq('competitor_id', competitorId)
         .eq('type', seed.sourceType)
         .eq('url', canonicalSourceUrl)
-        .maybeSingle();
+        .order('created_at', { ascending: true })
+        .limit(1);
 
       if (sourceError) {
         throw sourceError;
       }
+
+      const sourceMatch = Array.isArray(sourceMatches) ? sourceMatches[0] : sourceMatches;
 
       if (existingHistoricItem) {
         const needsUpdate =
