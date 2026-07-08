@@ -2,6 +2,36 @@
 
 ---
 
+## Session Changelog — 2026-07-07
+
+This documents every engineering change made in the 2026-07-07 work session.
+
+### Search Answer Improvements
+- Broadened search answers so pricing and other cross-company queries summarize the spread across companies instead of collapsing into one vendor.
+- Improved evidence selection so answer context prefers distinct companies and more varied claims.
+- Added contextual follow-up questions so users can drill into the previous answer and result set without starting over.
+- Replaced numeric confidence percentages in the evidence cards with Low / Medium / High confidence tiers.
+
+### LLM Provider Flexibility
+- Added configurable OpenAI-compatible LLM support via `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL`.
+- Kept Groq support as a backward-compatible option.
+- Added automatic fast/smart search model tiers so simple questions can use a low-latency model while broad questions escalate to a stronger model.
+
+### Shared Dataset Rollout
+- Routed dashboard and source reads/writes through a shared owner so the best tsp.today@gmail.com experience can be the live experience for everyone.
+- Added a shared-owner resolver helper to keep the production experience consistent across users.
+
+### Bootstrap Resilience
+- Hardened `bootstrapAiUniverseForUser()` against duplicate competitor/source rows so onboarding refreshes no longer fail with PGRST116.
+
+### Dashboard UX Cleanup
+- Consolidated the refresh actions into a single `Refresh database` button.
+- Moved `Current intelligence` into a collapsible dropdown panel.
+- Turned the dashboard into a more search-first experience with cleaner evidence cards.
+
+### Documentation / Action File
+- Added `ACTIONABLE_STEPS.txt` with concrete next steps for the current project state.
+
 ## Session Changelog — 2026-06-30
 
 This documents every engineering change made in the 2026-06-30 work session.
@@ -81,6 +111,7 @@ This documents every engineering change made in the 2026-06-30 work session.
 | `app/api/search-intelligence/route.ts` | Hybrid search + stale row refresh |
 | `app/dashboard/page.tsx` | Bootstrap on load; automation metric card; system-source guard |
 | `app/dashboard/sources/page.tsx` | Automation summary; system delete guards; useCallback fix |
+| `lib/sharedOwner.ts` | Shared-owner helper for production-wide dataset routing (new file) |
 | `scripts/seed-ai-universe.ts` | Seeds companies + sources + historic intelligence |
 | `scripts/backfill-embeddings.ts` | Fixed CLI arg parsing |
 | `supabase/migrations/202606300001_system_ai_universe.sql` | is_system columns + delete-prevention trigger |
@@ -88,28 +119,28 @@ This documents every engineering change made in the 2026-06-30 work session.
 | `tsconfig.json` | Removed deprecated baseUrl and ignoreDeprecations |
 | `package.json` | Added seed:ai-universe script |
 | `README.md` | Updated operator docs |
+| `ACTIONABLE_STEPS.txt` | Plain-text action checklist for the current state (new file) |
 
 ---
 
 ## Next Session — Where to Start
 
 ### Immediate operational steps (do these first)
-1. **Verify Vercel deployed the latest commit** (`d5a033e5`) — check the Vercel dashboard for tsp.today@gmail.com's project.
-2. **Log in as tsp.today@gmail.com** on the live app and click **"Run defaults now"** in the dashboard nav. This seeds all 11 AI companies, their sources, and 33 historic intelligence items into the DB.
-3. **Run a search** like "Show pricing changes from the last month" — should now return real results instead of an error.
-4. **Check the "Default-company cron" metric card** — should show a real timestamp after step 2.
+1. **Verify the latest Vercel deploy** from `main` and confirm the shared-owner dataset is live for every login.
+2. **Run a broad pricing search** like "Show pricing changes from the last month" and verify the answer summarizes multiple companies when applicable.
+3. **Test a follow-up question** from the answer card and confirm the previous answer and top results are used as context.
+4. **Check the evidence cards** and confirm confidence is shown as Low / Medium / High instead of percentages.
+5. **Watch for latency** on the new fast/smart model routing and tighten thresholds only if the broad path feels too slow.
 
 ### Known remaining gaps
 - **Embeddings on historic seed items** — the 33 seeded intelligence items don't have vector embeddings yet, so semantic search won't surface them; only text search will. Fix: run `npx ts-node scripts/backfill-embeddings.ts --user-id <uuid>` after seeding, or wire the backfill into the bootstrap flow.
-- **Search answer quality** — results are showing raw summaries from the live-scrape fallback. Better quality comes once the daily cron has run a few times and built up real intelligence items with properly generated summaries.
-- **No AI-generated strategic answer** — search returns a list of items but no synthesized answer. Next big product move is generating a brief paragraph answer above the results list using the top items as context.
+- **Search answer latency** — the stronger model improves quality but can be slower; the current fast/smart routing is the workaround, and thresholds may still need tuning.
 - **query-intelligence route still exists** — it's no longer used by the dashboard but the endpoint is still live. Can be removed or repurposed.
 
 ### Next product features (priority order)
-1. **Synthesized search answers** — take top 3–5 search results and generate a 2–3 sentence strategic answer at the top of the results (major product differentiator).
-2. **Embed historic seeds on bootstrap** — call `generateIntelligenceEmbedding` for each seed item during `bootstrapAiUniverseForUser` so semantic search works immediately.
-3. **Company intelligence profiles** — a `/dashboard/company/[name]` page showing timeline, recent changes, pricing history, and source status for a single company.
-4. **Email digest** — weekly summary of the most important changes across all tracked companies, sent to the user's email.
+1. **Embed historic seeds on bootstrap** — call `generateIntelligenceEmbedding` for each seed item during `bootstrapAiUniverseForUser` so semantic search works immediately.
+2. **Company intelligence profiles** — a `/dashboard/company/[name]` page showing timeline, recent changes, pricing history, and source status for a single company.
+3. **Email digest** — weekly summary of the most important changes across all tracked companies, sent to the user's email.
 
 ---
 
@@ -120,6 +151,10 @@ This documents every engineering change made in the 2026-06-30 work session.
 - ✅ Apply Track 2 migrations to Supabase
 - ✅ Backfill embeddings for existing intelligence_items
 - ✅ Test end-to-end flow: Check → Embed → Store → Search
+- ✅ Multi-company search answers are live
+- ✅ Contextual follow-up questions are live
+- ✅ Tiered confidence labels are live
+- ✅ Shared-owner dataset routing is live
 - Future: Add deployment protection or access control to `/api/check` endpoint
 
 **ACTION ITEMS FOR DA BOSS:**
