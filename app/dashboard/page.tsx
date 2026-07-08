@@ -186,8 +186,7 @@ export default function Dashboard() {
   const [intelligence, setIntelligence] = useState<IntelligenceItem[]>([]);
   const [competitorCount, setCompetitorCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [checking, setChecking] = useState(false);
-  const [runningDefaults, setRunningDefaults] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [query, setQuery] = useState('');
   const [queryFocused, setQueryFocused] = useState(false);
@@ -300,34 +299,32 @@ export default function Dashboard() {
   const highPriorityChanges = changes.filter((change) => change.importance_score >= 4);
   const recentChanges = changes.slice(0, 6);
 
-  async function runCheckNow() {
-    setChecking(true);
+  async function runDatabaseRefresh() {
+    setRefreshing(true);
     setCheckResult(null);
 
     try {
-      const res = await fetch('/api/check');
-      const json = await res.json();
+      const defaultCheck = await fetch('/api/check-default-companies');
+      const defaultJson = await defaultCheck.json();
 
-      setCheckResult(json);
+      if (!defaultCheck.ok) {
+        throw new Error(defaultJson.error || 'Default-company refresh failed.');
+      }
+
+      const manualCheck = await fetch('/api/check');
+      const manualJson = await manualCheck.json();
+
+      if (!manualCheck.ok) {
+        throw new Error(manualJson.error || 'Database refresh failed.');
+      }
+
+      setCheckResult(manualJson);
       await load();
-    } catch {
-      setCheckResult({ error: 'Check failed.' });
+    } catch (error) {
+      setCheckResult({ error: error instanceof Error ? error.message : 'Refresh failed.' });
     }
 
-    setChecking(false);
-  }
-
-  async function runDefaultChecks() {
-    setRunningDefaults(true);
-
-    try {
-      await fetch('/api/check-default-companies');
-      await load();
-    } catch {
-      // best effort
-    }
-
-    setRunningDefaults(false);
+    setRefreshing(false);
   }
 
   async function askIntelligenceDatabase(searchQuery = query) {
@@ -401,11 +398,8 @@ export default function Dashboard() {
             <Link className="btn" href="/dashboard/sources">
               Manage sources
             </Link>
-            <button className="btn" onClick={runDefaultChecks} disabled={runningDefaults}>
-              {runningDefaults ? 'Running...' : 'Run defaults now'}
-            </button>
-            <button className="btn" onClick={runCheckNow} disabled={checking}>
-              {checking ? 'Checking...' : 'Run check'}
+            <button className="btn" onClick={runDatabaseRefresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh database'}
             </button>
           </div>
         </nav>
@@ -832,179 +826,172 @@ export default function Dashboard() {
           </section>
         )}
 
-        <section
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 0.8fr)',
-            gap: 18,
-          }}
-        >
-          <div style={{ ...cardStyle, padding: 24 }}>
-            <div style={{ marginBottom: 18 }}>
-              <h2 style={{ margin: 0 }}>Current intelligence</h2>
-              <p style={{ ...mutedStyle, marginBottom: 0 }}>
-                The latest known state of every monitored database signal.
-              </p>
-            </div>
-
-            {loading && <p style={mutedStyle}>Loading intelligence...</p>}
-
-            {!loading && recentChanges.length > 0 && (
-              <div style={{ display: 'grid', gap: 14, marginBottom: 22 }}>
-                {recentChanges.map((change) => (
-                  <article
-                    key={change.id}
-                    style={{
-                      padding: 20,
-                      borderRadius: 20,
-                      border: '1px solid rgba(148,163,184,0.16)',
-                      background: 'rgba(2,6,23,0.38)',
-                    }}
-                  >
-                    <span style={importanceBadge(change.importance_score)}>
-                      {importanceLabel(change.importance_score)}
-                    </span>
-
-                    <h3 style={{ marginBottom: 6 }}>
-                      {change.monitored_sources?.competitors?.name || 'System'} ·{' '}
-                      {sourceTypeLabels[
-                        change.monitored_sources?.type as keyof typeof sourceTypeLabels
-                      ] || change.monitored_sources?.type || 'source'}
-                    </h3>
-
-                    <p style={mutedStyle}>
-                      {new Date(change.created_at).toLocaleString()}
-                    </p>
-
-                    <p style={{ fontSize: 16 }}>{change.summary}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-
-            {!loading && intelligence.length === 0 && (
-              <div
-                style={{
-                  border: '1px dashed rgba(148,163,184,0.28)',
-                  borderRadius: 20,
-                  padding: 26,
-                  background: 'rgba(15,23,42,0.42)',
-                }}
-              >
-                <h3 style={{ marginTop: 0 }}>No intelligence captured yet.</h3>
-                <p style={mutedStyle}>
-                  Add monitored database sources, then run your first check to create baseline snapshots.
-                </p>
-              </div>
-            )}
-
-            {!loading && intelligence.length > 0 && (
-              <div style={{ display: 'grid', gap: 14 }}>
-                {intelligence.map((item) => (
-                  <article
-                    key={item.source_id}
-                    style={{
-                      padding: 20,
-                      borderRadius: 20,
-                      border: '1px solid rgba(148,163,184,0.16)',
-                      background: 'rgba(2,6,23,0.38)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        alignItems: 'flex-start',
-                      }}
-                    >
-                      <div>
-                        <span style={statusBadgeStyle(item.last_status)}>
-                          {statusLabel(item.last_status)}
-                        </span>
-
-                        <h3 style={{ marginBottom: 6 }}>
-                          {item.competitor} ·{' '}
-                          {sourceTypeLabels[item.type as keyof typeof sourceTypeLabels] || item.type}
-                        </h3>
-
-                        <p style={mutedStyle}>
-                          Snapshot captured: {formatDate(item.snapshot_created_at)}
-                        </p>
-                      </div>
-                    </div>
-
-                 <div
-  style={{
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-    gap: 12,
-    marginTop: 16,
-    marginBottom: 16,
-  }}
->
-  <div>
-    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Signal type</p>
-    <strong style={{ textTransform: 'capitalize' }}>
-      {sourceTypeLabels[item.type as keyof typeof sourceTypeLabels] || item.type}
-    </strong>
-  </div>
-
-  <div>
-    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Status</p>
-    <strong>{statusLabel(item.last_status)}</strong>
-  </div>
-
-  <div>
-    <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Last checked</p>
-    <strong>{formatDate(item.last_checked_at)}</strong>
-  </div>
-</div>
-
-<p
-  style={{
-    ...mutedStyle,
-    fontSize: 15,
-    lineHeight: 1.6,
-    marginBottom: 0,
-  }}
->
-  Current version captured and monitored. RivalSense will surface a database intelligence summary when this source changes.
-</p>
-
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      style={{ color: '#93C5FD', overflowWrap: 'anywhere' }}
-                    >
-                      {item.url}
-                    </a>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <aside style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
-            <section style={{ ...cardStyle, padding: 22 }}>
-              <h2 style={{ marginTop: 0 }}>Monitoring health</h2>
-
-              <div style={{ display: 'grid', gap: 12 }}>
-                <p style={mutedStyle}>
-                  Last checked: {formatDate(health.lastCheckedAt)}
-                </p>
-
+        <section style={{ ...cardStyle, padding: 24, marginBottom: 18 }}>
+          <details>
+            <summary
+              style={{
+                cursor: 'pointer',
+                listStyle: 'none',
+                outline: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <h2 style={{ margin: 0 }}>Current intelligence</h2>
+                  <p style={{ ...mutedStyle, margin: '6px 0 0' }}>
+                    Expand to inspect the latest known state of monitored signals.
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={statusBadgeStyle('unchanged')}>
-                    {health.healthy} healthy
-                  </span>
+                  <span style={statusBadgeStyle('unchanged')}>{health.healthy} healthy</span>
                   <span style={statusBadgeStyle(health.errors > 0 ? 'error' : 'not_checked')}>
                     {health.errors} errors
                   </span>
                 </div>
               </div>
-            </section>
+            </summary>
 
+            <div style={{ marginTop: 18 }}>
+              {loading && <p style={mutedStyle}>Loading intelligence...</p>}
+
+              {!loading && recentChanges.length > 0 && (
+                <div style={{ display: 'grid', gap: 14, marginBottom: 22 }}>
+                  {recentChanges.map((change) => (
+                    <article
+                      key={change.id}
+                      style={{
+                        padding: 20,
+                        borderRadius: 20,
+                        border: '1px solid rgba(148,163,184,0.16)',
+                        background: 'rgba(2,6,23,0.38)',
+                      }}
+                    >
+                      <span style={importanceBadge(change.importance_score)}>
+                        {importanceLabel(change.importance_score)}
+                      </span>
+
+                      <h3 style={{ marginBottom: 6 }}>
+                        {change.monitored_sources?.competitors?.name || 'System'} ·{' '}
+                        {sourceTypeLabels[
+                          change.monitored_sources?.type as keyof typeof sourceTypeLabels
+                        ] || change.monitored_sources?.type || 'source'}
+                      </h3>
+
+                      <p style={mutedStyle}>{new Date(change.created_at).toLocaleString()}</p>
+
+                      <p style={{ fontSize: 16 }}>{change.summary}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {!loading && intelligence.length === 0 && (
+                <div
+                  style={{
+                    border: '1px dashed rgba(148,163,184,0.28)',
+                    borderRadius: 20,
+                    padding: 26,
+                    background: 'rgba(15,23,42,0.42)',
+                  }}
+                >
+                  <h3 style={{ marginTop: 0 }}>No intelligence captured yet.</h3>
+                  <p style={mutedStyle}>
+                    Add monitored database sources, then run your first refresh to create baseline snapshots.
+                  </p>
+                </div>
+              )}
+
+              {!loading && intelligence.length > 0 && (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {intelligence.map((item) => (
+                    <article
+                      key={item.source_id}
+                      style={{
+                        padding: 20,
+                        borderRadius: 20,
+                        border: '1px solid rgba(148,163,184,0.16)',
+                        background: 'rgba(2,6,23,0.38)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <div>
+                          <span style={statusBadgeStyle(item.last_status)}>
+                            {statusLabel(item.last_status)}
+                          </span>
+
+                          <h3 style={{ marginBottom: 6 }}>
+                            {item.competitor} ·{' '}
+                            {sourceTypeLabels[item.type as keyof typeof sourceTypeLabels] || item.type}
+                          </h3>
+
+                          <p style={mutedStyle}>
+                            Snapshot captured: {formatDate(item.snapshot_created_at)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                          gap: 12,
+                          marginTop: 16,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <div>
+                          <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Signal type</p>
+                          <strong style={{ textTransform: 'capitalize' }}>
+                            {sourceTypeLabels[item.type as keyof typeof sourceTypeLabels] || item.type}
+                          </strong>
+                        </div>
+
+                        <div>
+                          <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Status</p>
+                          <strong>{statusLabel(item.last_status)}</strong>
+                        </div>
+
+                        <div>
+                          <p style={{ ...mutedStyle, margin: 0, fontSize: 12 }}>Last checked</p>
+                          <strong>{formatDate(item.last_checked_at)}</strong>
+                        </div>
+                      </div>
+
+                      <p
+                        style={{
+                          ...mutedStyle,
+                          fontSize: 15,
+                          lineHeight: 1.6,
+                          marginBottom: 0,
+                        }}
+                      >
+                        Current version captured and monitored. RivalSense will surface a database intelligence summary when this source changes.
+                      </p>
+
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        style={{ color: '#93C5FD', overflowWrap: 'anywhere' }}
+                      >
+                        {item.url}
+                      </a>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
+        </section>
+
+        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 18 }}>
+          <aside style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
             <section style={{ ...cardStyle, padding: 22 }}>
               <h2 style={{ marginTop: 0 }}>Priority alerts</h2>
 
@@ -1014,12 +1001,8 @@ export default function Dashboard() {
                 <div style={{ display: 'grid', gap: 12 }}>
                   {highPriorityChanges.slice(0, 4).map((change) => (
                     <div key={change.id}>
-                      <strong>
-                        {change.monitored_sources?.competitors?.name || 'System'}
-                      </strong>
-                      <p style={{ ...mutedStyle, marginTop: 4 }}>
-                        {change.summary}
-                      </p>
+                      <strong>{change.monitored_sources?.competitors?.name || 'System'}</strong>
+                      <p style={{ ...mutedStyle, marginTop: 4 }}>{change.summary}</p>
                     </div>
                   ))}
                 </div>
