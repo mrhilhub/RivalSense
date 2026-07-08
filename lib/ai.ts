@@ -14,6 +14,93 @@ export interface SearchAnswerEvidence {
 
 type SearchIntent = 'pricing' | 'release' | 'incident' | 'docs' | 'github' | 'general';
 
+type ChatRole = 'system' | 'user' | 'assistant';
+
+type ChatMessage = {
+  role: ChatRole;
+  content: string;
+};
+
+type LlmConfig = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  providerLabel: string;
+};
+
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.replace(/\/+$/, '');
+}
+
+function resolveLlmConfig(): LlmConfig | null {
+  const unifiedKey = process.env.LLM_API_KEY || process.env.AI_API_KEY;
+  const unifiedBase = process.env.LLM_BASE_URL || process.env.AI_BASE_URL;
+  const unifiedModel = process.env.LLM_MODEL || process.env.AI_MODEL;
+
+  if (unifiedKey) {
+    return {
+      apiKey: unifiedKey,
+      baseUrl: normalizeBaseUrl(unifiedBase || 'https://api.openai.com/v1'),
+      model: unifiedModel || 'gpt-4o-mini',
+      providerLabel: 'configured-llm',
+    };
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    return {
+      apiKey: process.env.GROQ_API_KEY,
+      baseUrl: 'https://api.groq.com/openai/v1',
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      providerLabel: 'groq',
+    };
+  }
+
+  return null;
+}
+
+async function callChatCompletion(input: {
+  messages: ChatMessage[];
+  temperature?: number;
+  responseFormat?: { type: 'json_object' };
+}): Promise<string | null> {
+  const config = resolveLlmConfig();
+  if (!config) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.model,
+        temperature: input.temperature ?? 0.2,
+        messages: input.messages,
+        ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown LLM error');
+      console.warn(`LLM request failed (${config.providerLabel}):`, errorText.slice(0, 500));
+      return null;
+    }
+
+    const payload = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    return payload.choices?.[0]?.message?.content?.trim() || null;
+  } catch (error) {
+    console.warn('LLM request failed, using local fallback:', error);
+  }
+
+  return null;
+}
+
 export function normalizeSummary(summary: string | null | undefined): string {
   const cleaned = (summary || '').trim();
   if (!cleaned) {
@@ -68,50 +155,32 @@ function buildLocalSummary(input: { url: string; diff: string }): SummaryResult 
 }
 
 async function callGroqSummary(input: { url: string; diff: string }): Promise<SummaryResult | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
-
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        temperature: 0.2,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You summarize database intelligence changes for engineering, data, and platform teams. Focus on schema, migration, reliability, performance, release, pricing, and operational impact. Be concise and practical. Return JSON only.',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              url: input.url,
-              diff: input.diff.slice(0, 12000),
-              instruction:
-                'Summarize what changed, why it matters for database/platform decisions, and assign importance_score 1-5.',
-            }),
-          },
-        ],
-        response_format: { type: 'json_object' },
-      }),
+    const raw = await callChatCompletion({
+      temperature: 0.2,
+      responseFormat: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You summarize database intelligence changes for engineering, data, and platform teams. Focus on schema, migration, reliability, performance, release, pricing, and operational impact. Be concise and practical. Return JSON only.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            url: input.url,
+            diff: input.diff.slice(0, 12000),
+            instruction:
+              'Summarize what changed, why it matters for database/platform decisions, and assign importance_score 1-5.',
+          }),
+        },
+      ],
     });
 
-    if (!response.ok) {
+    if (!raw) {
       return null;
     }
 
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-
-    const raw = payload.choices?.[0]?.message?.content || '{}';
     const parsed = JSON.parse(raw) as Partial<SummaryResult>;
 
     if (parsed.summary && typeof parsed.importance_score === 'number') {
@@ -121,7 +190,7 @@ async function callGroqSummary(input: { url: string; diff: string }): Promise<Su
       };
     }
   } catch (error) {
-    console.warn('Groq summary request failed, falling back to local summary:', error);
+    console.warn('LLM summary request failed, falling back to local summary:', error);
   }
 
   return null;
@@ -347,8 +416,7 @@ async function callGroqSearchAnswer(input: {
   query: string;
   results: SearchAnswerEvidence[];
 }): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || input.results.length === 0) {
+  if (input.results.length === 0) {
     return null;
   }
 
@@ -356,54 +424,35 @@ async function callGroqSearchAnswer(input: {
     const companyRollup = buildCompanyRollup(input.results);
     const evidence = selectEvidenceForAnswer(input.query, input.results).slice(0, 6);
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        temperature: 0.2,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              query: input.query,
-              company_rollup: companyRollup,
-              evidence: evidence.map((item) => ({
-                company: item.company,
-                title: item.title,
-                category: item.category,
-                observed_at: item.observed_at,
-                summary: item.summary,
-                strategic_insight: item.strategic_insight,
-              })),
-              instruction:
-                'Answer the query directly using only this evidence. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Do not collapse the response into a single company unless the evidence truly only supports one company. Prioritize the most recent and relevant signals, collapse duplicates, and make the answer feel like one polished analyst response rather than stitched snippets.',
-            }),
-          },
-        ],
-      }),
+    return await callChatCompletion({
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            query: input.query,
+            company_rollup: companyRollup,
+            evidence: evidence.map((item) => ({
+              company: item.company,
+              title: item.title,
+              category: item.category,
+              observed_at: item.observed_at,
+              summary: item.summary,
+              strategic_insight: item.strategic_insight,
+            })),
+            instruction:
+              'Answer the query directly using only this evidence. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Do not collapse the response into a single company unless the evidence truly only supports one company. Prioritize the most recent and relevant signals, collapse duplicates, and make the answer feel like one polished analyst response rather than stitched snippets.',
+          }),
+        },
+      ],
     });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-
-    const content = payload.choices?.[0]?.message?.content?.trim();
-    return content || null;
   } catch (error) {
-    console.warn('Groq search answer request failed, falling back to local answer:', error);
+    console.warn('LLM search answer request failed, falling back to local answer:', error);
   }
 
   return null;

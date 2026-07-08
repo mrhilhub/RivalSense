@@ -26,6 +26,22 @@ cp .env.example .env.local
 npm run dev
 ```
 
+## LLM configuration
+
+RivalSense uses an OpenAI-compatible chat-completions API for summaries and strategic answers.
+
+Set one of these env configurations:
+
+1. Unified config (recommended):
+	- `LLM_API_KEY` (or `AI_API_KEY`)
+	- `LLM_BASE_URL` (or `AI_BASE_URL`), default: `https://api.openai.com/v1`
+	- `LLM_MODEL` (or `AI_MODEL`), default: `gpt-4o-mini`
+2. Backward-compatible Groq config:
+	- `GROQ_API_KEY`
+	- `GROQ_MODEL` (optional)
+
+If no provider key is configured, RivalSense falls back to its built-in local summarizer/answer logic.
+
 ## Seed major AI companies
 
 Add a broader intelligence universe for a signed-in user by seeding major AI companies and their tracked sources:
