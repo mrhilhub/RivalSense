@@ -230,7 +230,14 @@ function selectEvidenceForAnswer(query: string, results: SearchAnswerEvidence[])
       continue;
     }
 
-    if (selected.length < 2 || !seenCompanies.has(company)) {
+    if (selected.length === 0 || !seenCompanies.has(company)) {
+      selected.push(entry.item);
+      seenCompanies.add(company);
+      seenClaims.add(claim);
+      continue;
+    }
+
+    if (selected.length < 3 && selected.every((existing) => (existing.company || 'Unknown') === company)) {
       selected.push(entry.item);
       seenCompanies.add(company);
       seenClaims.add(claim);

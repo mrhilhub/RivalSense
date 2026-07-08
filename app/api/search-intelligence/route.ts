@@ -144,6 +144,12 @@ function isBroadQuery(query: string) {
   return /^(which|what|show|list|compare|find|where|who)\b/i.test(query.trim()) || /\b(all|recent|recently|latest|across)\b/i.test(query.toLowerCase());
 }
 
+function isCrossCompanyQuery(query: string) {
+  return /\b(price|pricing|cost|plan|billing|incident|outage|downtime|reliability|status|launch|release|ship|docs|documentation|api|schema|migration|github|repo|sdk|library|package)\b/i.test(
+    query
+  );
+}
+
 function mergeResults(primary: IntelligenceSearchRow[], secondary: IntelligenceSearchRow[]) {
   const seen = new Set(primary.map((item) => item.id));
   const merged = [...primary];
@@ -499,6 +505,7 @@ export async function GET(req: NextRequest) {
 
     let results: IntelligenceSearchRow[] = [];
     const broadQuery = isBroadQuery(query);
+    const crossCompanyQuery = broadQuery || isCrossCompanyQuery(query);
 
     if (useTextSearch) {
       const { data, error } = await supabase.rpc('search_intelligence_by_text', {
@@ -533,7 +540,7 @@ export async function GET(req: NextRequest) {
           results = (data || []) as IntelligenceSearchRow[];
         }
 
-        if (broadQuery) {
+        if (crossCompanyQuery) {
           const { data: textData } = await supabase.rpc('search_intelligence_by_text', {
             p_user_id: user.id,
             p_query: query,
@@ -569,8 +576,29 @@ export async function GET(req: NextRequest) {
       similarity: item.similarity || null,
     }));
 
-    if (broadQuery) {
+    if (crossCompanyQuery) {
       finalResults = diversifyResults(finalResults);
+    }
+
+    if (crossCompanyQuery) {
+      const distinctCompanies = new Set(finalResults.map((item) => item.company_name).filter(Boolean));
+
+      if (distinctCompanies.size <= 1) {
+        const fallbackResults = await liveSearchFallback(admin, user.id, query, Math.max(3, Math.min(matchCount, 6)));
+        const mergedResults = [...finalResults, ...fallbackResults];
+        const seenIds = new Set<string>();
+
+        finalResults = diversifyResults(
+          mergedResults.filter((item) => {
+            if (seenIds.has(item.id)) {
+              return false;
+            }
+
+            seenIds.add(item.id);
+            return true;
+          })
+        );
+      }
     }
 
     const needsRefresh = finalResults.some((item) => isGenericSummary(item.summary) || isGenericSummary(item.strategic_insight));
