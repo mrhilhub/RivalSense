@@ -179,6 +179,30 @@ function compactSourceLabel(url?: string | null) {
   }
 }
 
+function confidenceTier(score?: number | null) {
+  if (typeof score !== 'number') {
+    return null;
+  }
+
+  if (score >= 0.75) return 'High confidence';
+  if (score >= 0.45) return 'Medium confidence';
+  return 'Low confidence';
+}
+
+function confidenceBadgeStyle(score?: number | null): CSSProperties {
+  const tier = confidenceTier(score);
+
+  if (tier === 'High confidence') {
+    return statusBadgeStyle('unchanged');
+  }
+
+  if (tier === 'Medium confidence') {
+    return statusBadgeStyle('baseline_created');
+  }
+
+  return statusBadgeStyle('not_checked');
+}
+
 export default function Dashboard() {
   const [userId, setUserId] = useState('');
   const [sources, setSources] = useState<Source[]>([]);
@@ -718,9 +742,9 @@ export default function Dashboard() {
                     }}
                   >
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {typeof result.confidence_score === 'number' && (
-                        <span style={statusBadgeStyle('unchanged')}>
-                          {Math.round(result.confidence_score * 100)}% confidence
+                      {confidenceTier(result.confidence_score) && (
+                        <span style={confidenceBadgeStyle(result.confidence_score)}>
+                          {confidenceTier(result.confidence_score)}
                         </span>
                       )}
                       {(result.topics || [])
