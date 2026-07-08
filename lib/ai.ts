@@ -21,6 +21,8 @@ type ChatMessage = {
   content: string;
 };
 
+type ModelTier = 'fast' | 'smart';
+
 type LlmConfig = {
   apiKey: string;
   baseUrl: string;
@@ -62,6 +64,7 @@ async function callChatCompletion(input: {
   messages: ChatMessage[];
   temperature?: number;
   responseFormat?: { type: 'json_object' };
+  model?: string;
 }): Promise<string | null> {
   const config = resolveLlmConfig();
   if (!config) {
@@ -76,7 +79,7 @@ async function callChatCompletion(input: {
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model,
+        model: input.model || config.model,
         temperature: input.temperature ?? 0.2,
         messages: input.messages,
         ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
@@ -99,6 +102,54 @@ async function callChatCompletion(input: {
   }
 
   return null;
+}
+
+function resolveSearchModel(tier: ModelTier) {
+  const fastModel = process.env.LLM_MODEL_FAST || process.env.AI_MODEL_FAST;
+  const smartModel = process.env.LLM_MODEL_SMART || process.env.AI_MODEL_SMART;
+  const baseModel = process.env.LLM_MODEL || process.env.AI_MODEL || process.env.GROQ_MODEL;
+
+  if (tier === 'fast') {
+    return fastModel || baseModel || 'gpt-4o-mini';
+  }
+
+  return smartModel || baseModel || 'gpt-4o-mini';
+}
+
+function classifySearchComplexity(input: {
+  query: string;
+  results: SearchAnswerEvidence[];
+}) {
+  const terms = input.query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((term) => term.length > 2);
+  const uniqueCompanies = buildCompanyRollup(input.results).length;
+  const uniqueCategories = new Set(input.results.map((result) => result.category || 'unknown')).size;
+  const broadPattern = /\b(which|what|compare|across|all|recent|latest|vs|versus|trend|trends)\b/i;
+  const intent = inferSearchIntent(input.query);
+
+  const isBroad = broadPattern.test(input.query);
+  const hasManyResults = input.results.length >= 8;
+  const hasCrossCompanyEvidence = uniqueCompanies >= 3;
+  const hasCrossCategoryEvidence = uniqueCategories >= 3;
+  const longQuery = terms.length >= 8;
+
+  const shouldUseSmartModel =
+    process.env.LLM_FORCE_SMART_SEARCH === 'true' ||
+    (process.env.LLM_FORCE_FAST_SEARCH !== 'true' &&
+      (isBroad ||
+        hasManyResults ||
+        hasCrossCompanyEvidence ||
+        hasCrossCategoryEvidence ||
+        longQuery ||
+        intent === 'general'));
+
+  return {
+    shouldUseSmartModel,
+    uniqueCompanies,
+    uniqueCategories,
+  };
 }
 
 export function normalizeSummary(summary: string | null | undefined): string {
@@ -423,33 +474,49 @@ async function callGroqSearchAnswer(input: {
   try {
     const companyRollup = buildCompanyRollup(input.results);
     const evidence = selectEvidenceForAnswer(input.query, input.results).slice(0, 6);
+    const complexity = classifySearchComplexity(input);
+    const primaryTier: ModelTier = complexity.shouldUseSmartModel ? 'smart' : 'fast';
+    const fallbackTier: ModelTier = primaryTier === 'fast' ? 'smart' : 'fast';
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content:
+          'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          query: input.query,
+          company_rollup: companyRollup,
+          evidence: evidence.map((item) => ({
+            company: item.company,
+            title: item.title,
+            category: item.category,
+            observed_at: item.observed_at,
+            summary: item.summary,
+            strategic_insight: item.strategic_insight,
+          })),
+          instruction:
+            'Answer the query directly using only this evidence. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Do not collapse the response into a single company unless the evidence truly only supports one company. Prioritize the most recent and relevant signals, collapse duplicates, and make the answer feel like one polished analyst response rather than stitched snippets.',
+        }),
+      },
+    ];
+
+    const primaryAnswer = await callChatCompletion({
+      temperature: 0.2,
+      model: resolveSearchModel(primaryTier),
+      messages,
+    });
+
+    if (primaryAnswer) {
+      return primaryAnswer;
+    }
 
     return await callChatCompletion({
       temperature: 0.2,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You write concise strategic answers for an AI market intelligence product. Respond like a strong chat assistant. Start with the direct answer, then synthesize the strongest supporting signals into one coherent brief. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Use 3-4 sentences, plain English, no bullets, no markdown, no hedging, and do not repeat evidence verbatim.',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            query: input.query,
-            company_rollup: companyRollup,
-            evidence: evidence.map((item) => ({
-              company: item.company,
-              title: item.title,
-              category: item.category,
-              observed_at: item.observed_at,
-              summary: item.summary,
-              strategic_insight: item.strategic_insight,
-            })),
-            instruction:
-              'Answer the query directly using only this evidence. If the query is broad or the evidence spans multiple companies, summarize the spread across companies and include counts. Do not collapse the response into a single company unless the evidence truly only supports one company. Prioritize the most recent and relevant signals, collapse duplicates, and make the answer feel like one polished analyst response rather than stitched snippets.',
-          }),
-        },
-      ],
+      model: resolveSearchModel(fallbackTier),
+      messages,
     });
   } catch (error) {
     console.warn('LLM search answer request failed, falling back to local answer:', error);

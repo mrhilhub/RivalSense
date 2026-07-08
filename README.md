@@ -36,11 +36,22 @@ Set one of these env configurations:
 	- `LLM_API_KEY` (or `AI_API_KEY`)
 	- `LLM_BASE_URL` (or `AI_BASE_URL`), default: `https://api.openai.com/v1`
 	- `LLM_MODEL` (or `AI_MODEL`), default: `gpt-4o-mini`
+	- Optional search-tier overrides:
+		- `LLM_MODEL_FAST` (or `AI_MODEL_FAST`) for low-latency answers
+		- `LLM_MODEL_SMART` (or `AI_MODEL_SMART`) for complex queries
+		- `LLM_FORCE_FAST_SEARCH=true` to always use fast model
+		- `LLM_FORCE_SMART_SEARCH=true` to always use smart model
 2. Backward-compatible Groq config:
 	- `GROQ_API_KEY`
 	- `GROQ_MODEL` (optional)
 
 If no provider key is configured, RivalSense falls back to its built-in local summarizer/answer logic.
+
+Search answers now use a two-tier strategy automatically:
+
+1. Fast model for simple queries.
+2. Smart model for broad or complex cross-company queries.
+3. Automatic fallback to the other tier if the primary call fails.
 
 ## Seed major AI companies
 
